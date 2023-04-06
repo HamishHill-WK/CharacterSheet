@@ -1,7 +1,10 @@
 package com.example.charactersheet
 
+import android.Manifest
 import android.annotation.SuppressLint
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.os.Build
 import android.os.Bundle
 import android.util.DisplayMetrics
 import android.util.Log
@@ -12,32 +15,28 @@ import android.view.ViewGroup
 import android.widget.Toast
 import androidx.camera.core.*
 import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
-import androidx.recyclerview.widget.LinearLayoutManager
+import com.example.charactersheet.databinding.ActivityMainBinding
 import com.example.charactersheet.databinding.FragmentCameraBinding
+import com.example.charactersheet.databinding.FragmentSheetBinding
 import org.tensorflow.lite.task.vision.classifier.Classifications
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
 
-class CameraFragment : Fragment(), ImageClassifierHelper.ClassifierListener {
+class CameraFragment : Fragment() {
 
-    companion object {
-        private const val TAG = "Image Classifier"
-    }
+    private var imageCapture: ImageCapture? = null
+
+    private lateinit var cameraExecutor: ExecutorService
 
     private var _fragmentCameraBinding: FragmentCameraBinding? = null
     private val fragmentCameraBinding
         get() = _fragmentCameraBinding!!
 
-    private lateinit var imageClassifierHelper: ImageClassifierHelper
-    private lateinit var bitmapBuffer: Bitmap
-    private val classificationResultsAdapter by lazy {
-        ClassificationResultsAdapter().apply {
-            updateAdapterSize(imageClassifierHelper.maxResults)
-        }
-    }
+
     private var preview: Preview? = null
     private var imageAnalyzer: ImageAnalysis? = null
     private var camera: Camera? = null
@@ -46,8 +45,6 @@ class CameraFragment : Fragment(), ImageClassifierHelper.ClassifierListener {
     //holder for captured image -hh
     var newImage1: ImageProxy? = null
 
-    /** Blocking camera operations are performed using this executor */
-    private lateinit var cameraExecutor: ExecutorService
 
     override fun onResume() {
         super.onResume()
@@ -73,32 +70,33 @@ class CameraFragment : Fragment(), ImageClassifierHelper.ClassifierListener {
     ): View {
         _fragmentCameraBinding = FragmentCameraBinding.inflate(inflater, container, false)
 
+        // Request camera permissions
+        if (allPermissionsGranted()) {
+            startCamera()
+        } else {
+            ActivityCompat.requestPermissions(
+                this, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS)
+        }
 
+        // Set up the listeners for take photo and video capture buttons
+        _fragmentCameraBinding!!.imageCaptureButton.setOnClickListener { takePhoto() }
 
-        return fragmentCameraBinding.root
+        cameraExecutor = Executors.newSingleThreadExecutor()
+
+        _fragmentCameraBinding = FragmentCameraBinding.inflate(inflater, container, false)
+        val view = fragmentCameraBinding.root
+        return view
     }
 
     @SuppressLint("MissingPermission")
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        imageClassifierHelper =
-            ImageClassifierHelper(context = requireContext(), imageClassifierListener = this)
-
-        with(fragmentCameraBinding.recyclerviewResults) {
-            layoutManager = LinearLayoutManager(requireContext())
-            adapter = classificationResultsAdapter
-        }
-
         cameraExecutor = Executors.newSingleThreadExecutor()
 
         fragmentCameraBinding.viewFinder.post {
-            // Set up the camera and its use cases
             setUpCamera()
         }
-
-        // Attach listeners to UI control widgets
-        initBottomSheetControls()
     }
 
     // Initialize CameraX, and prepare to bind the camera use cases
@@ -116,18 +114,11 @@ class CameraFragment : Fragment(), ImageClassifierHelper.ClassifierListener {
         )
     }
 
-    private fun initBottomSheetControls() {
-        imageClassifierHelper.threshold = 0.5f
-
-        imageClassifierHelper.maxResults = 1
-        classificationResultsAdapter.updateAdapterSize(size = imageClassifierHelper.maxResults)
-
-        fragmentCameraBinding.captureButton.setOnClickListener{
-            classifyImg1()
-        }
-
-        imageClassifierHelper.numThreads = 4
+    private fun allPermissionsGranted() = REQUIRED_PERMISSIONS.all {
+        ContextCompat.checkSelfPermission(
+            requireContext(), it) == PackageManager.PERMISSION_GRANTED
     }
+
 
     // Update the values displayed in the bottom sheet. Reset classifier.
 
@@ -193,6 +184,26 @@ class CameraFragment : Fragment(), ImageClassifierHelper.ClassifierListener {
         }
     }
 
+    private fun textRecog (img: InputImage) {
+        val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+
+        val result = recognizer.process(img)
+            .addOnSuccessListener { visionText ->
+                // Task completed successfully
+                // ...
+                if (visionText.text == "")
+                    Log.d(TAG, "no text in image ")
+                else
+                    Log.d(TAG, "detected: " + visionText.text)
+            }
+            .addOnFailureListener { e ->
+                // Task failed with an exception
+                // ...
+                Log.d(TAG, "no text $e ")
+            }
+    }
+
+
     private fun getScreenOrientation() : Int {
         val outMetrics = DisplayMetrics()
 
@@ -210,42 +221,22 @@ class CameraFragment : Fragment(), ImageClassifierHelper.ClassifierListener {
         return display?.rotation ?: 0
     }
 
-    fun classifyImg1()
-    {
-        if(newImage1 != null) {
-            newImage1.use { bitmapBuffer.copyPixelsFromBuffer(newImage1?.planes?.get(0)?.buffer) }
-
-            imageClassifierHelper.classify(bitmapBuffer, getScreenOrientation())
-        }
-    }
-
     fun classifyImage(image: ImageProxy) {
-        // Copy out RGB bits to the shared bitmap buffer
-        image.use { bitmapBuffer.copyPixelsFromBuffer(image.planes[0].buffer) }
 
-        // Pass Bitmap and rotation to the image classifier helper for processing and classification
-        imageClassifierHelper.classify(bitmapBuffer, getScreenOrientation())
     }
 
-    @SuppressLint("NotifyDataSetChanged")
-    override fun onError(error: String) {
-        activity?.runOnUiThread {
-            Toast.makeText(requireContext(), error, Toast.LENGTH_SHORT).show()
-            classificationResultsAdapter.updateResults(null)
-            classificationResultsAdapter.notifyDataSetChanged()
-        }
-    }
-
-    @SuppressLint("NotifyDataSetChanged")
-    override fun onResults(
-        results: List<Classifications>?,
-        inferenceTime: Long
-    ) {
-        activity?.runOnUiThread {
-            // Show result on bottom sheet
-            classificationResultsAdapter.updateResults(results)
-            classificationResultsAdapter.notifyDataSetChanged()
-
-        }
+    companion object {
+        private const val TAG = "CameraFragment"
+        private const val FILENAME_FORMAT = "yyyy-MM-dd-HH-mm-ss-SSS"
+        private const val REQUEST_CODE_PERMISSIONS = 10
+        private val REQUIRED_PERMISSIONS =
+            mutableListOf (
+                Manifest.permission.CAMERA,
+                Manifest.permission.RECORD_AUDIO
+            ).apply {
+                if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
+                    add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                }
+            }.toTypedArray()
     }
 }
