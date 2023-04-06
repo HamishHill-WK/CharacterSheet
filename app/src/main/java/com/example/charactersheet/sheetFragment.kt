@@ -3,6 +3,7 @@ package com.example.charactersheet
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -24,11 +25,16 @@ class SheetFragment : Fragment() {
 
     private lateinit var recyclerView: FrameLayout
 
-    // Keeps track of which LayoutManager is in use for the [RecyclerView]
-    private var isLinearLayoutManager = true
+    private var letterId: String? = null
+
+    private lateinit var resultText: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        arguments?.let {
+            letterId = it.getString(RESULT).toString()
+        }
     }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?,
@@ -41,6 +47,13 @@ class SheetFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         recyclerView = binding.root
+
+        resultText = binding.RollResult
+
+        if(letterId != null) {
+            resultText.text = letterId
+            Log.d("fragment", letterId!!)
+        }
 
         val button: List<ImageButton> = listOf(binding.StrengthButton,
             binding.DexButton,
@@ -127,6 +140,6 @@ class SheetFragment : Fragment() {
     }
 
     companion object {
-
+        val RESULT = "result"
     }
 }

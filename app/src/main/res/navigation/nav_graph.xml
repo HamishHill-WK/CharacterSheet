@@ -18,5 +18,26 @@
         android:id="@+id/cameraFragment"
         android:name="com.example.charactersheet.CameraFragment"
         android:label="fragment_camera"
-        tools:layout="@layout/fragment_camera" />
+        tools:layout="@layout/fragment_camera" >
+        <action
+            android:id="@+id/action_cameraFragment_to_popUpFragment"
+            app:destination="@id/popUpFragment" />
+    </fragment>
+    <fragment
+        android:id="@+id/popUpFragment"
+        android:name="com.example.charactersheet.PopUpFragment"
+        android:label="PopUpFragment" >
+        <argument
+            android:name="result"
+            app:argType="string" />
+        <action
+            android:id="@+id/action_popUpFragment_to_sheetFragment"
+            app:destination="@id/sheetFragment" />
+        <action
+            android:id="@+id/action_popUpFragment_to_cameraFragment"
+            app:destination="@id/cameraFragment" />
+        <action
+            android:id="@+id/action_popUpFragment_to_cameraFragment2"
+            app:destination="@id/cameraFragment" />
+    </fragment>
 </navigation>

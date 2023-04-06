@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    tools:context=".MainActivity">
+    >
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/PopUpConst"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <TextView
+            android:id="@+id/PopUpMessage"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="50sp"
+            app:layout_constraintLeft_toLeftOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            android:text="i_got" />
+
+        <TextView
+            android:id="@+id/resultsText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="50sp"
+            app:layout_constraintLeft_toRightOf="@id/PopUpMessage"
+            app:layout_constraintTop_toTopOf="parent"
+            android:text="0" />
+
+        <TextView
+            android:id="@+id/PopUpMessage2"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="50sp"
+            app:layout_constraintLeft_toLeftOf="@id/PopUpMessage"
+            app:layout_constraintTop_toBottomOf="@id/PopUpMessage"
+            android:text="is_this_correct" />
+
+        <Button
+            android:id="@+id/YesButton"
+            android:layout_width="100dp"
+            android:layout_height="100dp"
+            android:layout_margin="20dp"
+            android:background="#228B22"
+            app:layout_constraintLeft_toLeftOf="@id/PopUpMessage2"
+            app:layout_constraintTop_toBottomOf="@id/PopUpMessage2" />
+
+        <Button
+            android:id="@+id/NoButton"
+            android:layout_width="100dp"
+            android:layout_height="100dp"
+            android:layout_margin="20dp"
+            android:background="#FF0000"
+            app:layout_constraintLeft_toRightOf="@id/YesButton"
+            app:layout_constraintTop_toBottomOf="@id/PopUpMessage2" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+</FrameLayout>
