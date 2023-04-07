@@ -69,4 +69,9 @@ dependencies {
         implementation "androidx.camera:camera-extensions:${camerax_version}"
 
         implementation 'com.google.android.gms:play-services-mlkit-text-recognition:18.0.2'
+
+    //implementation 'org.tensorflow:tensorflow-lite-task-vision'
+    // Import the GPU delegate plugin Library for GPU inference
+    //implementation 'org.tensorflow:tensorflow-lite-gpu-delegate-plugin'
+
 }

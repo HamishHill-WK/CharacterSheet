@@ -3,6 +3,7 @@ package com.example.charactersheet
 import android.Manifest
 import android.content.ContentValues
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
@@ -25,6 +26,13 @@ import com.example.charactersheet.databinding.FragmentCameraBinding
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
+import org.tensorflow.lite.support.image.ImageProcessor
+import org.tensorflow.lite.support.image.TensorImage
+import org.tensorflow.lite.support.image.ops.Rot90Op
+import org.tensorflow.lite.task.core.BaseOptions
+import org.tensorflow.lite.task.vision.detector.Detection
+import org.tensorflow.lite.task.vision.detector.ObjectDetector
+import org.tensorflow.lite.task.vision.detector.ObjectDetector.ObjectDetectorOptions
 import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.*
@@ -68,7 +76,6 @@ class CameraFragment : Fragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        Log.d(TAG,"on create called")
         _fragmentCameraBinding = FragmentCameraBinding.inflate(inflater, container, false)
         val view = fragmentCameraBinding.root
 
@@ -89,7 +96,6 @@ class CameraFragment : Fragment() {
         if(noPerm)
             cameraPermissionResultReceiver.launch(Manifest.permission.CAMERA)
 
-
         if (allPermissionsGranted()) {
             Log.d(TAG, "permissionganted")
             startCamera()
@@ -97,7 +103,8 @@ class CameraFragment : Fragment() {
             Log.d(TAG, "no permiss")
             this.activity?.let {
                 ActivityCompat.requestPermissions(
-                    it, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS)
+                    it, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS
+                )
             }
         }
 
@@ -154,7 +161,11 @@ class CameraFragment : Fragment() {
                     val image: InputImage
                     try {
                         image = InputImage.fromFilePath(requireContext(), output.savedUri!!)
-                        textRecog(image)
+                        val bitmap =
+                            MediaStore.Images.Media.getBitmap(requireContext().contentResolver, output.savedUri!!)
+                        val imageRotation = image.rotationDegrees
+                        DetectObjs(bitmap, imageRotation)
+                        //textRecog(image)
                     } catch (e: IOException) {
                         e.printStackTrace()
                     }
@@ -163,6 +174,46 @@ class CameraFragment : Fragment() {
             }
         )
     }
+
+    var resultList: MutableList<Bitmap> = mutableListOf()
+
+    private fun DetectObjs(image: Bitmap, rot: Int) {
+
+        var options = ObjectDetectorOptions.builder()
+            .setBaseOptions(BaseOptions.builder().useGpu().build())
+            .setMaxResults(1)
+            .build()
+        var objectDetector = ObjectDetector.createFromFileAndOptions(
+            context, "android(4).tflite", options
+        )
+
+        val imageProcessor =
+            ImageProcessor.Builder()
+                .add(Rot90Op(-rot / 90))
+                .build()
+        val tensorImage = imageProcessor.process(TensorImage.fromBitmap(image))
+        var results: List<Detection> = objectDetector.detect(tensorImage)
+        if(results.isEmpty())
+            Log.d(TAG, "no face")
+        for((x,d) in results.withIndex()) {
+            Log.d(TAG, ("${results[x].boundingBox.left  /*+ (results[x].boundingBox.height()/2).toInt()*/}, "+
+                     "${(results[x].boundingBox.top) /*- (results[x].boundingBox.width()/2)).toInt()*/}"))
+
+            resultList.add(Bitmap.createScaledBitmap(Bitmap.createBitmap(image, //0, 0,
+                (results[x].boundingBox.left.toInt()),
+                (results[x].boundingBox.top.toInt() ),
+                results[x].boundingBox.width().toInt(),
+                results[x].boundingBox.height().toInt() ),1000,1000,true ))
+        }
+
+        for((x,d) in resultList.withIndex()) {
+            Log.d(TAG, "${d.width}, ${d.height}")
+            val image1 = InputImage.fromBitmap(d, rot)
+            textRecog(image1)
+        }
+    }
+
+    // Run inference
 
     // Initialize CameraX, and prepare to bind the camera use cases
     private fun startCamera() {
@@ -181,7 +232,6 @@ class CameraFragment : Fragment() {
 
             imageCapture = ImageCapture.Builder().build()
 
-
             // Select back camera as a default
             val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
 
@@ -192,8 +242,6 @@ class CameraFragment : Fragment() {
                 // Bind use cases to camera
                 cameraProvider.bindToLifecycle(
                     this, cameraSelector, preview, imageCapture)
-
-                Log.d(TAG, "camera set up ")
 
             } catch(exc: Exception) {
                 Log.e(TAG, "Use case binding failed", exc)
@@ -214,8 +262,14 @@ class CameraFragment : Fragment() {
             .addOnSuccessListener { visionText ->
                 // Task completed successfully
                 // ...
-                if (visionText.text == "")
+                if (visionText.text == "") {
+                    Toast.makeText(
+                        requireContext(),
+                        "no text found, please try again",
+                        Toast.LENGTH_SHORT
+                    ).show()
                     Log.d(TAG, "no text in image ")
+                }
                 else
                 {
                     Log.d(TAG, "detected: " + visionText.text)
@@ -230,7 +284,6 @@ class CameraFragment : Fragment() {
                 Log.d(TAG, "no text $e ")
             }
     }
-
 
     private fun getScreenOrientation() : Int {
         val outMetrics = DisplayMetrics()
@@ -249,10 +302,6 @@ class CameraFragment : Fragment() {
         return display?.rotation ?: 0
     }
 
-    fun classifyImage(image: ImageProxy) {
-
-    }
-
     companion object {
         private const val TAG = "CameraFragment"
         private const val FILENAME_FORMAT = "yyyy-MM-dd-HH-mm-ss-SSS"
@@ -265,5 +314,6 @@ class CameraFragment : Fragment() {
                     add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
                 }
             }.toTypedArray()
+
     }
 }
