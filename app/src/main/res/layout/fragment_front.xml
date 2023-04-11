@@ -3,12 +3,137 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".FrontFragment">
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    tools:context=".SheetFragment">
 
-    <!-- TODO: Update blank fragment layout -->
-    <TextView
+    <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:text="@string/hello_blank_fragment" />
+        android:padding="8pt"
+        >
+
+        <EditText
+            android:id="@+id/CharacterName"
+            android:layout_width="160dp"
+            android:layout_height="wrap_content"
+            android:autofillHints=""
+            android:hint="@string/name"
+            android:inputType="text"
+            android:minHeight="48dp"
+            android:textColorHint="#757575"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <EditText
+            android:id="@+id/Class_Level"
+            android:layout_width="160dp"
+            android:layout_height="wrap_content"
+            android:hint="@string/class_level"
+            android:inputType="text"
+            android:minHeight="48dp"
+            android:textColorHint="#757575"
+            app:layout_constraintLeft_toRightOf="@id/CharacterName"
+            app:layout_constraintTop_toTopOf="@id/CharacterName"
+            android:autofillHints="" />
+
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:id="@+id/StatusContainer"
+            android:layout_width="378dp"
+            android:layout_height="234dp"
+            app:layout_constraintLeft_toLeftOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/CharacterName">
+
+            <ImageButton
+                android:id="@+id/HealthButton"
+                android:layout_width="114dp"
+                android:layout_height="114dp"
+                android:contentDescription="@string/app_name"
+                app:layout_constraintLeft_toLeftOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
+
+            <TextView
+                android:id="@+id/HealthText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:padding="5dp"
+                android:text="@string/healthText"
+                android:textSize="25sp"
+                app:layout_constraintLeft_toLeftOf="@id/HealthButton"
+                app:layout_constraintTop_toTopOf="@id/HealthButton" />
+
+            <TextView
+                android:id="@+id/HealthNumber"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:padding="5dp"
+                android:text="@string/HealthNumber"
+                android:textSize="25sp"
+                app:layout_constraintLeft_toLeftOf="@id/HealthText"
+                app:layout_constraintTop_toBottomOf="@id/HealthText" />
+
+            <ImageView
+                android:id="@+id/ACHolder"
+                android:layout_width="114dp"
+                android:layout_height="114dp"
+                android:contentDescription="@string/app_name"
+                app:layout_constraintLeft_toLeftOf="@id/HealthButton"
+                app:layout_constraintTop_toBottomOf="@id/HealthButton" />
+
+            <TextView
+                android:id="@+id/ACText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:padding="5dp"
+                android:text="@string/ArmourClass"
+                android:textSize="25sp"
+                android:visibility="invisible"
+                app:layout_constraintLeft_toLeftOf="@id/ACHolder"
+                app:layout_constraintTop_toTopOf="@id/ACHolder" />
+
+            <EditText
+                android:id="@+id/ACNumber"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:autofillHints=""
+                android:inputType="numberDecimal"
+                android:padding="5dp"
+                android:text="@string/ACNumber"
+                android:textSize="25sp"
+                app:layout_constraintBottom_toBottomOf="@id/ACHolder"
+                app:layout_constraintLeft_toLeftOf="@id/ACHolder" />
+
+            <ImageButton
+                android:id="@+id/HitDieButton"
+                android:layout_width="114dp"
+                android:layout_height="114dp"
+                android:contentDescription="@string/app_name"
+                app:layout_constraintLeft_toRightOf="@id/HealthButton"
+                app:layout_constraintTop_toTopOf="parent" />
+
+            <TextView
+                android:id="@+id/HitDieText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:padding="5dp"
+                android:text="@string/hit_die"
+                android:textSize="25sp"
+                app:layout_constraintLeft_toLeftOf="@id/HitDieButton"
+                app:layout_constraintTop_toTopOf="@id/HitDieButton" />
+
+
+        </androidx.constraintlayout.widget.ConstraintLayout>
+
+        <TextView
+            android:id="@+id/RollResult"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="128dp"
+            android:layout_marginTop="48dp"
+            android:text="@string/rollresult"
+            android:textSize="25sp"
+            app:layout_constraintStart_toStartOf="@id/StatusContainer"
+            app:layout_constraintTop_toBottomOf="@id/StatusContainer" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
 
 </FrameLayout>

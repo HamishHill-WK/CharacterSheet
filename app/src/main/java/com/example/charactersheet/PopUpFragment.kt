@@ -12,6 +12,8 @@ import androidx.fragment.app.Fragment
 import androidx.navigation.findNavController
 import com.example.charactersheet.databinding.FragmentPopUpBinding
 
+//intermediary fragment which allows the user to confirm the detected result before it is sent to the server - hh
+
 class PopUpFragment : Fragment() {
     private var _binding: FragmentPopUpBinding? = null
 
@@ -28,7 +30,7 @@ class PopUpFragment : Fragment() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         arguments?.let {
-            letterId = it.getString(SheetFragment.RESULT).toString()
+            letterId = it.getString(FrontFragment.RESULT).toString()
         }
     }
 
@@ -60,7 +62,9 @@ class PopUpFragment : Fragment() {
         val buttonN: Button =binding.NoButton
 
         buttonY.setOnClickListener{
-            val action = PopUpFragmentDirections.actionPopUpFragmentToSheetFragment()
+            Log.d(TAG, letterId)
+
+            val action = PopUpFragmentDirections.actionPopUpFragmentToFrontFragment(letterId)
 
             view.findNavController().navigate(action)
         }
@@ -72,6 +76,7 @@ class PopUpFragment : Fragment() {
     }
 
     companion object {
-
+        val RESULT = "result"
+        val TAG = "PopUpFragment.kt"
     }
 }

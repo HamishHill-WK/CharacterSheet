@@ -1,59 +1,109 @@
 package com.example.charactersheet
 
 import android.os.Bundle
-import androidx.fragment.app.Fragment
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.FrameLayout
+import android.widget.TextView
+import androidx.fragment.app.Fragment
+import androidx.navigation.findNavController
+import com.example.charactersheet.databinding.FragmentFrontBinding
+import java.io.PrintWriter
+import java.net.Socket
 
-// TODO: Rename parameter arguments, choose names that match
-// the fragment initialization parameters, e.g. ARG_ITEM_NUMBER
-private const val ARG_PARAM1 = "param1"
-private const val ARG_PARAM2 = "param2"
+//this fragment handles the main page of the application -hh
 
-/**
- * A simple [Fragment] subclass.
- * Use the [FrontFragment.newInstance] factory method to
- * create an instance of this fragment.
- */
 class FrontFragment : Fragment() {
     // TODO: Rename and change types of parameters
-    private var param1: String? = null
-    private var param2: String? = null
+    private var _binding: FragmentFrontBinding? = null
+
+    // This property is only valid between onCreateView and
+    // onDestroyView.
+    private val binding get() = _binding!!
+
+    private lateinit var recyclerView: FrameLayout
+
+    private var letterId: String? = null
+
+    private lateinit var resultText: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
         arguments?.let {
-            param1 = it.getString(ARG_PARAM1)
-            param2 = it.getString(ARG_PARAM2)
+            letterId = it.getString(RESULT).toString()
+            Log.d("front frag", letterId!!)
         }
     }
 
-    override fun onCreateView(
-        inflater: LayoutInflater, container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View? {
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?,
+                              savedInstanceState: Bundle?): View? {
         // Inflate the layout for this fragment
-        return inflater.inflate(R.layout.fragment_front, container, false)
+        _binding = FragmentFrontBinding.inflate(inflater, container, false)
+        val view = binding.root
+        return view
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        recyclerView = binding.root
+
+        resultText = binding.RollResult
+
+        if(letterId != null) {
+            resultText.text = letterId!!
+            if(resultText.text != null)
+                if(resultText.text.toString()  in (1..20).toString())
+                Thread{connect(letterId.toString())}.start()
+        }
+
+        val button = binding.HitDieButton
+        val button1 = binding.HealthButton
+
+        button.setOnClickListener{
+            Thread{connect()}.start()
+        }
+
+        button1.setOnClickListener{
+            val action = FrontFragmentDirections.actionFrontFragmentToCameraFragment()
+            view.findNavController().navigate(action)
+        }
+
+    }
+
+    private fun connect() {
+        //var message = resultText
+        val client = Socket("192.168.0.14", 4000)
+        val output = PrintWriter(client.getOutputStream(), true)
+        //val input = BufferedReader(InputStreamReader(client.inputStream))
+
+        val msg = "connect"
+
+        //resultText = ClassificationResultsAdapter().getItemName()
+
+        println(msg)
+        output.println(msg)
+        //println("Client receiving [${input.readLine()}]")
+        client.close()
+
+    }
+    
+    private fun connect(S: String){
+        //var message = resultText
+        val client = Socket("192.168.0.14", 4000)
+        val output = PrintWriter(client.getOutputStream(), true)
+        //val input = BufferedReader(InputStreamReader(client.inputStream))
+
+        //resultText = ClassificationResultsAdapter().getItemName()
+
+        println(S)
+        output.println(S)
+        //println("Client receiving [${input.readLine()}]")
+        client.close()
     }
 
     companion object {
-        /**
-         * Use this factory method to create a new instance of
-         * this fragment using the provided parameters.
-         *
-         * @param param1 Parameter 1.
-         * @param param2 Parameter 2.
-         * @return A new instance of fragment FrontFragment.
-         */
-        // TODO: Rename and change types and number of parameters
-        @JvmStatic
-        fun newInstance(param1: String, param2: String) =
-            FrontFragment().apply {
-                arguments = Bundle().apply {
-                    putString(ARG_PARAM1, param1)
-                    putString(ARG_PARAM2, param2)
-                }
-            }
+        val RESULT = "result"
     }
 }

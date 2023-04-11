@@ -3,7 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/nav_graph"
-    app:startDestination="@id/sheetFragment">
+    app:startDestination="@id/frontFragment">
 
     <fragment
         android:id="@+id/sheetFragment"
@@ -39,5 +39,19 @@
         <action
             android:id="@+id/action_popUpFragment_to_cameraFragment2"
             app:destination="@id/cameraFragment" />
+        <action
+            android:id="@+id/action_popUpFragment_to_frontFragment"
+            app:destination="@id/frontFragment" />
+    </fragment>
+    <fragment
+        android:id="@+id/frontFragment"
+        android:name="com.example.charactersheet.FrontFragment"
+        android:label="FrontFragment" >
+        <action
+            android:id="@+id/action_frontFragment_to_cameraFragment"
+            app:destination="@id/cameraFragment" />
+        <argument
+            android:name="result"
+            app:argType="string" />
     </fragment>
 </navigation>
