@@ -4,28 +4,30 @@ import android.Manifest
 import android.content.ContentValues
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.Matrix
 import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
-import android.util.DisplayMetrics
 import android.util.Log
-import android.view.Display
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.camera.core.*
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageCapture
+import androidx.camera.core.ImageCaptureException
+import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
-import androidx.navigation.findNavController
 import com.example.charactersheet.databinding.FragmentCameraBinding
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
+import jdk.nashorn.internal.objects.NativeRegExp.source
 import org.tensorflow.lite.support.image.ImageProcessor
 import org.tensorflow.lite.support.image.TensorImage
 import org.tensorflow.lite.support.image.ops.Rot90Op
@@ -38,6 +40,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+
 
 //this fragment handles camera and image analysis operations -hh
 
@@ -53,6 +56,7 @@ class CameraFragment : Fragment() {
 
     private lateinit var recyclerView: FrameLayout
 
+    private lateinit var resultText: String
 
     override fun onResume() {
         super.onResume()
@@ -165,8 +169,10 @@ class CameraFragment : Fragment() {
                         val bitmap =
                             MediaStore.Images.Media.getBitmap(requireContext().contentResolver, output.savedUri!!)
                         val imageRotation = image.rotationDegrees
-                        DetectObjs(bitmap, imageRotation)
+                        Thread{DetectObjs(bitmap, imageRotation)}.start()
                         //textRecog(image)
+                        requireContext().contentResolver.delete(output.savedUri!!, null, null)
+                        Log.d(TAG, "image deleted")
                     } catch (e: IOException) {
                         e.printStackTrace()
                     }
@@ -174,6 +180,7 @@ class CameraFragment : Fragment() {
                 }
             }
         )
+
     }
 
     var resultList: MutableList<Bitmap> = mutableListOf()
@@ -209,12 +216,10 @@ class CameraFragment : Fragment() {
 
         for((x,d) in resultList.withIndex()) {
             Log.d(TAG, "${d.width}, ${d.height}")
-            val image1 = InputImage.fromBitmap(d, rot)
-            textRecog(image1)
+            //val image1 = InputImage.fromBitmap(d, rot)
+            textRecog(d)
         }
     }
-
-    // Run inference
 
     // Initialize CameraX, and prepare to bind the camera use cases
     private fun startCamera() {
@@ -256,10 +261,39 @@ class CameraFragment : Fragment() {
             requireContext(), it) == PackageManager.PERMISSION_GRANTED
     }
 
-    private fun textRecog (img: InputImage) {
-        val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+    private fun setResult(str: String){
+        resultText = str
+    }
 
-        val result = recognizer.process(img)
+    private fun getResult(): String{
+        return resultText
+    }
+
+    private fun findText(img: InputImage){
+
+    }
+
+    private var angle = 0
+    private fun textRecog (img: Bitmap, rot: Int) {
+        if (angle ==360)
+
+
+        angle += 10
+        val matrix = Matrix()
+        matrix.postRotate(angle.toFloat())
+        Bitmap.createBitmap(
+            source,
+            0,
+            0,
+            source.getWidth(),
+            source.getHeight(),
+            matrix,
+            true
+        )
+        val image1 = InputImage.fromBitmap(img, rot)
+        val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+        var txt = "default"
+        val result = recognizer.process(image1)
             .addOnSuccessListener { visionText ->
                 // Task completed successfully
                 // ...
@@ -270,13 +304,16 @@ class CameraFragment : Fragment() {
                         Toast.LENGTH_SHORT
                     ).show()
                     Log.d(TAG, "no text in image ")
+                    txt = "notext"
+                    textRecog(img, rot)
                 }
                 else
                 {
                     Log.d(TAG, "detected: " + visionText.text)
-                    val action = CameraFragmentDirections.actionCameraFragmentToPopUpFragment(visionText.text)
+                    txt= visionText.text
+                    //val action = CameraFragmentDirections.actionCameraFragmentToPopUpFragment(visionText.text)
 
-                    view?.findNavController()?.navigate(action)
+                    //view?.findNavController()?.navigate(action)
                 }
             }
             .addOnFailureListener { e ->
@@ -284,23 +321,6 @@ class CameraFragment : Fragment() {
                 // ...
                 Log.d(TAG, "no text $e ")
             }
-    }
-
-    private fun getScreenOrientation() : Int {
-        val outMetrics = DisplayMetrics()
-
-        val display: Display?
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-            display = requireActivity().display
-            display?.getRealMetrics(outMetrics)
-        } else {
-            @Suppress("DEPRECATION")
-            display = requireActivity().windowManager.defaultDisplay
-            @Suppress("DEPRECATION")
-            display.getMetrics(outMetrics)
-        }
-
-        return display?.rotation ?: 0
     }
 
     companion object {
