@@ -28,7 +28,7 @@
             android:id="@+id/Class_Level"
             android:layout_width="160dp"
             android:layout_height="wrap_content"
-            android:hint="@string/class_level"
+            android:hint="server"
             android:inputType="text"
             android:minHeight="48dp"
             android:textColorHint="#757575"
@@ -46,66 +46,75 @@
             <ImageButton
                 android:id="@+id/HealthButton"
                 android:layout_width="114dp"
+                android:layout_marginRight="100dp"
                 android:layout_height="114dp"
                 android:contentDescription="@string/app_name"
                 app:layout_constraintLeft_toLeftOf="parent"
                 app:layout_constraintTop_toTopOf="parent" />
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentRight="true"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                app:layout_constraintTop_toBottomOf="@id/HealthButton"
+                app:layout_constraintLeft_toLeftOf="@id/HealthButton"
+                >
+
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/threshold_minus"
+                    android:layout_width="50dp"
+                    android:layout_height="50dp"
+                    android:contentDescription=""
+                    android:src="" />
+
+                <TextView
+                    android:id="@+id/threshold_value"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginLeft="0dp"
+                    android:layout_marginRight="0dp"
+                    android:gravity="center"
+                    android:text="1"
+                    android:textColor="@color/bottom_sheet_text_color"
+                    android:textSize="25sp" />
+
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/threshold_plus"
+                    android:layout_width="50dp"
+                    android:layout_height="50dp"
+                    android:contentDescription=""
+                    android:src=""  />
+            </LinearLayout>
 
             <TextView
                 android:id="@+id/HealthText"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:padding="5dp"
-                android:text="@string/healthText"
+                android:text="Roll"
                 android:textSize="25sp"
                 app:layout_constraintLeft_toLeftOf="@id/HealthButton"
                 app:layout_constraintTop_toTopOf="@id/HealthButton" />
-
-            <TextView
-                android:id="@+id/HealthNumber"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:padding="5dp"
-                android:text="@string/HealthNumber"
-                android:textSize="25sp"
-                app:layout_constraintLeft_toLeftOf="@id/HealthText"
-                app:layout_constraintTop_toBottomOf="@id/HealthText" />
-
-            <ImageView
-                android:id="@+id/ACHolder"
-                android:layout_width="114dp"
-                android:layout_height="114dp"
-                android:contentDescription="@string/app_name"
-                app:layout_constraintLeft_toLeftOf="@id/HealthButton"
-                app:layout_constraintTop_toBottomOf="@id/HealthButton" />
-
-            <TextView
-                android:id="@+id/ACText"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:padding="5dp"
-                android:text="@string/ArmourClass"
-                android:textSize="25sp"
-                android:visibility="invisible"
-                app:layout_constraintLeft_toLeftOf="@id/ACHolder"
-                app:layout_constraintTop_toTopOf="@id/ACHolder" />
 
             <EditText
                 android:id="@+id/ACNumber"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:autofillHints=""
                 android:inputType="numberDecimal"
+                android:visibility="invisible"
                 android:padding="5dp"
                 android:text="@string/ACNumber"
                 android:textSize="25sp"
-                app:layout_constraintBottom_toBottomOf="@id/ACHolder"
-                app:layout_constraintLeft_toLeftOf="@id/ACHolder" />
+                app:layout_constraintTop_toBottomOf="@id/HitDieButton"
+                app:layout_constraintLeft_toLeftOf="@id/HitDieButton" />
 
             <ImageButton
                 android:id="@+id/HitDieButton"
                 android:layout_width="114dp"
                 android:layout_height="114dp"
+                android:layout_marginLeft="50dp"
                 android:contentDescription="@string/app_name"
                 app:layout_constraintLeft_toRightOf="@id/HealthButton"
                 app:layout_constraintTop_toTopOf="parent" />
@@ -115,7 +124,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:padding="5dp"
-                android:text="@string/hit_die"
+                android:text="Connect"
                 android:textSize="25sp"
                 app:layout_constraintLeft_toLeftOf="@id/HitDieButton"
                 app:layout_constraintTop_toTopOf="@id/HitDieButton" />

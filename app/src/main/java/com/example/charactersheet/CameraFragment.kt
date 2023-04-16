@@ -7,16 +7,17 @@ import android.graphics.Bitmap
 import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
-import android.util.DisplayMetrics
 import android.util.Log
-import android.view.Display
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.camera.core.*
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageCapture
+import androidx.camera.core.ImageCaptureException
+import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -53,7 +54,6 @@ class CameraFragment : Fragment() {
 
     private lateinit var recyclerView: FrameLayout
 
-
     override fun onResume() {
         super.onResume()
 
@@ -69,7 +69,6 @@ class CameraFragment : Fragment() {
         // Shut down our background executor
         cameraExecutor.shutdown()
     }
-
 
     var noPerm = false
     override fun onCreateView(
@@ -163,14 +162,14 @@ class CameraFragment : Fragment() {
                     try {
                         image = InputImage.fromFilePath(requireContext(), output.savedUri!!)
                         val bitmap =
-                            MediaStore.Images.Media.getBitmap(requireContext().contentResolver, output.savedUri!!)
+                            MediaStore.Images.Media.getBitmap(requireContext().contentResolver, output.savedUri!!)//creates bitmap from image saved in gallery
                         val imageRotation = image.rotationDegrees
                         DetectObjs(bitmap, imageRotation)
                         //textRecog(image)
+                        requireContext().contentResolver.delete(output.savedUri!!, null, null)//remove save image from gallery
                     } catch (e: IOException) {
                         e.printStackTrace()
                     }
-
                 }
             }
         )
@@ -179,13 +178,12 @@ class CameraFragment : Fragment() {
     var resultList: MutableList<Bitmap> = mutableListOf()
 
     private fun DetectObjs(image: Bitmap, rot: Int) {
-
         var options = ObjectDetectorOptions.builder()
             .setBaseOptions(BaseOptions.builder().useGpu().build())
             .setMaxResults(1)
             .build()
         var objectDetector = ObjectDetector.createFromFileAndOptions(
-            context, "android(4).tflite", options
+            context, "android(6).tflite", options
         )
 
         val imageProcessor =
@@ -213,8 +211,6 @@ class CameraFragment : Fragment() {
             textRecog(image1)
         }
     }
-
-    // Run inference
 
     // Initialize CameraX, and prepare to bind the camera use cases
     private fun startCamera() {
@@ -286,23 +282,6 @@ class CameraFragment : Fragment() {
             }
     }
 
-    private fun getScreenOrientation() : Int {
-        val outMetrics = DisplayMetrics()
-
-        val display: Display?
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-            display = requireActivity().display
-            display?.getRealMetrics(outMetrics)
-        } else {
-            @Suppress("DEPRECATION")
-            display = requireActivity().windowManager.defaultDisplay
-            @Suppress("DEPRECATION")
-            display.getMetrics(outMetrics)
-        }
-
-        return display?.rotation ?: 0
-    }
-
     companion object {
         private const val TAG = "CameraFragment"
         private const val FILENAME_FORMAT = "yyyy-MM-dd-HH-mm-ss-SSS"
@@ -315,6 +294,5 @@ class CameraFragment : Fragment() {
                     add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
                 }
             }.toTypedArray()
-
     }
 }
