@@ -14,10 +14,7 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.camera.core.CameraSelector
-import androidx.camera.core.ImageCapture
-import androidx.camera.core.ImageCaptureException
-import androidx.camera.core.Preview
+import androidx.camera.core.*
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -35,12 +32,15 @@ import org.tensorflow.lite.task.vision.detector.Detection
 import org.tensorflow.lite.task.vision.detector.ObjectDetector
 import org.tensorflow.lite.task.vision.detector.ObjectDetector.ObjectDetectorOptions
 import java.io.IOException
+import java.nio.ByteBuffer
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
+
 //this fragment handles camera and image analysis operations -hh
+typealias LumaListener = (luma: Double) -> Unit
 
 class CameraFragment : Fragment() {
 
@@ -54,14 +54,6 @@ class CameraFragment : Fragment() {
 
     private lateinit var recyclerView: FrameLayout
 
-    override fun onResume() {
-        super.onResume()
-
-       // if (!PermissionsFragment.hasPermissions(requireContext())) {
-       //     Navigation.findNavController(requireActivity(), R.id.fragment_container)
-        //        .navigate(CameraFragmentDirections.actionCameraToPermissions())
-        //}
-    }
 
     override fun onDestroyView() {
         _fragmentCameraBinding = null
@@ -164,6 +156,8 @@ class CameraFragment : Fragment() {
                         val bitmap =
                             MediaStore.Images.Media.getBitmap(requireContext().contentResolver, output.savedUri!!)//creates bitmap from image saved in gallery
                         val imageRotation = image.rotationDegrees
+
+
                         DetectObjs(bitmap, imageRotation)
                         //textRecog(image)
                         requireContext().contentResolver.delete(output.savedUri!!, null, null)//remove save image from gallery
@@ -179,7 +173,7 @@ class CameraFragment : Fragment() {
 
     private fun DetectObjs(image: Bitmap, rot: Int) {
         var options = ObjectDetectorOptions.builder()
-            .setBaseOptions(BaseOptions.builder().useGpu().build())
+            .setBaseOptions(BaseOptions.builder().useGpu().build()).setScoreThreshold(0.70f)
             .setMaxResults(1)
             .build()
         var objectDetector = ObjectDetector.createFromFileAndOptions(
@@ -191,6 +185,7 @@ class CameraFragment : Fragment() {
                 .add(Rot90Op(-rot / 90))
                 .build()
         val tensorImage = imageProcessor.process(TensorImage.fromBitmap(image))
+
         var results: List<Detection> = objectDetector.detect(tensorImage)
         if(results.isEmpty())
             Log.d(TAG, "no face")
@@ -202,20 +197,25 @@ class CameraFragment : Fragment() {
                 (results[x].boundingBox.left.toInt()),
                 (results[x].boundingBox.top.toInt() ),
                 results[x].boundingBox.width().toInt(),
-                results[x].boundingBox.height().toInt() ),1000,1000,true ))
+                results[x].boundingBox.height().toInt() ),
+                results[x].boundingBox.width().toInt() ,
+                results[x].boundingBox.height().toInt(),true ))
         }
 
         for((x,d) in resultList.withIndex()) {
             Log.d(TAG, "${d.width}, ${d.height}")
+
+
             val image1 = InputImage.fromBitmap(d, rot)
             textRecog(image1)
         }
+
+        resultList.clear()
     }
 
     // Initialize CameraX, and prepare to bind the camera use cases
     private fun startCamera() {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(requireContext())
-
         cameraProviderFuture.addListener({
             // Used to bind the lifecycle of cameras to the lifecycle owner
             val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
@@ -228,16 +228,16 @@ class CameraFragment : Fragment() {
                 }
 
             imageCapture = ImageCapture.Builder().build()
-
             // Select back camera as a default
-            val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+            //val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+            val cameraSelector = CameraSelector.Builder().requireLensFacing(CameraSelector.LENS_FACING_BACK).build()
 
             try {
                 // Unbind use cases before rebinding
                 cameraProvider.unbindAll()
 
                 // Bind use cases to camera
-                cameraProvider.bindToLifecycle(
+                val cam = cameraProvider.bindToLifecycle(
                     this, cameraSelector, preview, imageCapture)
 
             } catch(exc: Exception) {
@@ -294,5 +294,27 @@ class CameraFragment : Fragment() {
                     add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
                 }
             }.toTypedArray()
+    }
+}
+
+private class LuminosityAnalyzer(private val listener: LumaListener) : ImageAnalysis.Analyzer {
+
+    private fun ByteBuffer.toByteArray(): ByteArray {
+        rewind()    // Rewind the buffer to zero
+        val data = ByteArray(remaining())
+        get(data)   // Copy the buffer into a byte array
+        return data // Return the byte array
+    }
+
+    override fun analyze(image: ImageProxy) {
+
+        val buffer = image.planes[0].buffer
+        val data = buffer.toByteArray()
+        val pixels = data.map { it.toInt() and 0xFF }
+        val luma = pixels.average()
+
+        listener(luma)
+
+        image.close()
     }
 }

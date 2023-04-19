@@ -15,6 +15,8 @@ import androidx.fragment.app.Fragment
 import androidx.navigation.findNavController
 import com.example.charactersheet.databinding.FragmentSheetBinding
 
+//made a start on a dnd style character sheet but ultimately decided it was not needed
+
 class SheetFragment : Fragment() {
 
     private var _binding: FragmentSheetBinding? = null

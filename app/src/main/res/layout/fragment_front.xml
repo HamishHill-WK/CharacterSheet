@@ -12,28 +12,16 @@
         android:padding="8pt"
         >
 
-        <EditText
-            android:id="@+id/CharacterName"
-            android:layout_width="160dp"
+        <TextView
+            android:id="@+id/ServerNameHolder"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:autofillHints=""
-            android:hint="@string/name"
-            android:inputType="text"
+            android:text="@string/servername"
+            android:textSize="25sp"
             android:minHeight="48dp"
             android:textColorHint="#757575"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent" />
-
-        <EditText
-            android:id="@+id/Class_Level"
-            android:layout_width="160dp"
-            android:layout_height="wrap_content"
-            android:hint="server"
-            android:inputType="text"
-            android:minHeight="48dp"
-            android:textColorHint="#757575"
-            app:layout_constraintLeft_toRightOf="@id/CharacterName"
-            app:layout_constraintTop_toTopOf="@id/CharacterName"
+            app:layout_constraintLeft_toLeftOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
             android:autofillHints="" />
 
         <androidx.constraintlayout.widget.ConstraintLayout
@@ -41,7 +29,7 @@
             android:layout_width="378dp"
             android:layout_height="234dp"
             app:layout_constraintLeft_toLeftOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/CharacterName">
+            app:layout_constraintTop_toBottomOf="@id/ServerNameHolder">
 
             <ImageButton
                 android:id="@+id/HealthButton"
@@ -66,8 +54,7 @@
                     android:id="@+id/threshold_minus"
                     android:layout_width="50dp"
                     android:layout_height="50dp"
-                    android:contentDescription=""
-                    android:src="" />
+                    />
 
                 <TextView
                     android:id="@+id/threshold_value"
@@ -84,8 +71,7 @@
                     android:id="@+id/threshold_plus"
                     android:layout_width="50dp"
                     android:layout_height="50dp"
-                    android:contentDescription=""
-                    android:src=""  />
+                    />
             </LinearLayout>
 
             <TextView
@@ -99,19 +85,30 @@
                 app:layout_constraintTop_toTopOf="@id/HealthButton" />
 
             <EditText
-                android:id="@+id/ACNumber"
+                android:id="@+id/ConnectionCode"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:inputType="numberDecimal"
-                android:visibility="invisible"
+                android:inputType="number"
+                android:digits="0123456789."
                 android:padding="5dp"
-                android:text="@string/ACNumber"
+                android:text="000.000.0.00"
                 android:textSize="25sp"
-                app:layout_constraintTop_toBottomOf="@id/HitDieButton"
-                app:layout_constraintLeft_toLeftOf="@id/HitDieButton" />
+                app:layout_constraintTop_toBottomOf="@id/ConnectButton"
+                app:layout_constraintLeft_toLeftOf="@id/ConnectButton" />
+
+            <EditText
+                android:id="@+id/ConnectionPort"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:inputType="number"
+                android:padding="5dp"
+                android:text="0000"
+                android:textSize="25sp"
+                app:layout_constraintTop_toBottomOf="@id/ConnectionCode"
+                app:layout_constraintLeft_toLeftOf="@id/ConnectionCode" />
 
             <ImageButton
-                android:id="@+id/HitDieButton"
+                android:id="@id/ConnectButton"
                 android:layout_width="114dp"
                 android:layout_height="114dp"
                 android:layout_marginLeft="50dp"
@@ -126,8 +123,8 @@
                 android:padding="5dp"
                 android:text="Connect"
                 android:textSize="25sp"
-                app:layout_constraintLeft_toLeftOf="@id/HitDieButton"
-                app:layout_constraintTop_toTopOf="@id/HitDieButton" />
+                app:layout_constraintLeft_toLeftOf="@id/ConnectButton"
+                app:layout_constraintTop_toTopOf="@id/ConnectButton" />
 
 
         </androidx.constraintlayout.widget.ConstraintLayout>
