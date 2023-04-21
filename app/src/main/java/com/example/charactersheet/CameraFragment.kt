@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.ContentValues
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
@@ -14,7 +15,10 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.camera.core.*
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageCapture
+import androidx.camera.core.ImageCaptureException
+import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -32,7 +36,6 @@ import org.tensorflow.lite.task.vision.detector.Detection
 import org.tensorflow.lite.task.vision.detector.ObjectDetector
 import org.tensorflow.lite.task.vision.detector.ObjectDetector.ObjectDetectorOptions
 import java.io.IOException
-import java.nio.ByteBuffer
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.ExecutorService
@@ -40,8 +43,6 @@ import java.util.concurrent.Executors
 
 
 //this fragment handles camera and image analysis operations -hh
-typealias LumaListener = (luma: Double) -> Unit
-
 class CameraFragment : Fragment() {
 
     private var imageCapture: ImageCapture? = null
@@ -54,6 +55,12 @@ class CameraFragment : Fragment() {
 
     private lateinit var recyclerView: FrameLayout
 
+    private lateinit var maxDice: String
+    private var numOfDice  = 1 // the total number of dice the player wants to roll
+    private var numResults = 1 //size of each batch to detect
+    private var resultsString = ""
+
+    var noPerm = false
 
     override fun onDestroyView() {
         _fragmentCameraBinding = null
@@ -62,7 +69,20 @@ class CameraFragment : Fragment() {
         cameraExecutor.shutdown()
     }
 
-    var noPerm = false
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        arguments?.let {
+            maxDice = it.getString(FrontFragment.NUMDICE).toString()
+           // numOfDice = maxDice//.toInt()
+            Log.d(TAG, "$numOfDice $maxDice")
+        }
+
+        numResults = if(numOfDice in 1..4)        // top face algorithm has only been tested on up to 4 dice visible in one image
+            numOfDice                                   //might be able to detect more but this has not been tested
+        else                                               //if the num of dice is greater than 4 then the results will be collected in batches
+            4
+    }
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -84,6 +104,10 @@ class CameraFragment : Fragment() {
                 noPerm = true
             }
         }
+        //theses two sections both check that the application has the required permissions
+        //I've left both in for now because I can't remember which one works
+
+        //  ** DELETE ONE OF THESE LATER **
 
         if(noPerm)
             cameraPermissionResultReceiver.launch(Manifest.permission.CAMERA)
@@ -99,9 +123,8 @@ class CameraFragment : Fragment() {
                 )
             }
         }
-
-        _fragmentCameraBinding!!.imageCaptureButton.setOnClickListener { takePhoto() }
-
+        fragmentCameraBinding.imageCaptureButton.setOnClickListener { takePhoto() }
+        fragmentCameraBinding.removeLastButton.setOnClickListener { removeLast() }
         return view
     }
 
@@ -114,6 +137,11 @@ class CameraFragment : Fragment() {
     private fun takePhoto() {
         // Get a stable reference of the modifiable image capture use case
         val imageCapture = imageCapture ?: return
+        if(numOfDice == 0){
+            Log.d(TAG, "here  ")
+            val action = CameraFragmentDirections.actionCameraFragmentToPopUpFragment(resultsString)
+            view?.findNavController()?.navigate(action)
+        }
 
         Log.d(TAG, "take photo called")
         // Create time stamped name and MediaStore entry.
@@ -157,7 +185,6 @@ class CameraFragment : Fragment() {
                             MediaStore.Images.Media.getBitmap(requireContext().contentResolver, output.savedUri!!)//creates bitmap from image saved in gallery
                         val imageRotation = image.rotationDegrees
 
-
                         DetectObjs(bitmap, imageRotation)
                         //textRecog(image)
                         requireContext().contentResolver.delete(output.savedUri!!, null, null)//remove save image from gallery
@@ -169,14 +196,14 @@ class CameraFragment : Fragment() {
         )
     }
 
-    var resultList: MutableList<Bitmap> = mutableListOf()
+    var resultList: MutableList<Bitmap> = mutableListOf() //list of bitmaps containing top face images
 
     private fun DetectObjs(image: Bitmap, rot: Int) {
-        var options = ObjectDetectorOptions.builder()
+        val options = ObjectDetectorOptions.builder()
             .setBaseOptions(BaseOptions.builder().useGpu().build()).setScoreThreshold(0.70f)
-            .setMaxResults(1)
+            .setMaxResults(numResults)
             .build()
-        var objectDetector = ObjectDetector.createFromFileAndOptions(
+        val objectDetector = ObjectDetector.createFromFileAndOptions(
             context, "android(6).tflite", options
         )
 
@@ -186,30 +213,44 @@ class CameraFragment : Fragment() {
                 .build()
         val tensorImage = imageProcessor.process(TensorImage.fromBitmap(image))
 
-        var results: List<Detection> = objectDetector.detect(tensorImage)
+        val results: List<Detection> = objectDetector.detect(tensorImage)
         if(results.isEmpty())
-            Log.d(TAG, "no face")
-        for((x,d) in results.withIndex()) {
+            Toast.makeText(
+                requireContext(),
+                "no Dice detected, please try again",
+                Toast.LENGTH_SHORT
+            ).show()
+        for((x, _) in results.withIndex()) { //each detected face has a new bitmap created for text recognition
             Log.d(TAG, ("${results[x].boundingBox.left  /*+ (results[x].boundingBox.height()/2).toInt()*/}, "+
                      "${(results[x].boundingBox.top) /*- (results[x].boundingBox.width()/2)).toInt()*/}"))
 
-            resultList.add(Bitmap.createScaledBitmap(Bitmap.createBitmap(image, //0, 0,
+            //val image1 = Bitmap.createBitmap(image)
+
+            val image1: Bitmap = image.copy(Bitmap.Config.ARGB_8888, true)
+
+
+            for (y  in  1..results[x].boundingBox.height().toInt())
+                for (c  in  1..results[x].boundingBox.width().toInt())
+                    if(c< results[x].boundingBox.left.toInt() || c > results[x].boundingBox.left.toInt() + results[x].boundingBox.width().toInt()
+                        && y < results[x].boundingBox.top.toInt()||
+                        y > results[x].boundingBox.top.toInt() + results[x].boundingBox.height().toInt()) {
+                        image1.setPixel(c, y, Color.BLACK)
+                    }
+            resultList.add(Bitmap.createBitmap(image1))
+
+            /*resultList.add(Bitmap.createScaledBitmap(Bitmap.createBitmap(image, //0, 0,
                 (results[x].boundingBox.left.toInt()),
                 (results[x].boundingBox.top.toInt() ),
                 results[x].boundingBox.width().toInt(),
                 results[x].boundingBox.height().toInt() ),
                 results[x].boundingBox.width().toInt() ,
-                results[x].boundingBox.height().toInt(),true ))
+                results[x].boundingBox.height().toInt(),true ))*/
         }
 
-        for((x,d) in resultList.withIndex()) {
-            Log.d(TAG, "${d.width}, ${d.height}")
-
-
+        for(d in resultList) {
             val image1 = InputImage.fromBitmap(d, rot)
             textRecog(image1)
         }
-
         resultList.clear()
     }
 
@@ -220,7 +261,6 @@ class CameraFragment : Fragment() {
             // Used to bind the lifecycle of cameras to the lifecycle owner
             val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
 
-            // Preview
             val preview = Preview.Builder()
                 .build()
                 .also {
@@ -229,7 +269,6 @@ class CameraFragment : Fragment() {
 
             imageCapture = ImageCapture.Builder().build()
             // Select back camera as a default
-            //val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
             val cameraSelector = CameraSelector.Builder().requireLensFacing(CameraSelector.LENS_FACING_BACK).build()
 
             try {
@@ -252,6 +291,12 @@ class CameraFragment : Fragment() {
             requireContext(), it) == PackageManager.PERMISSION_GRANTED
     }
 
+    private fun removeLast(){
+        numOfDice += 1
+        resultsString = resultsString.substringBeforeLast(',')
+        fragmentCameraBinding.resultsTextCam.text  =resultsString
+    }
+
     private fun textRecog (img: InputImage) {
         val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
 
@@ -269,10 +314,35 @@ class CameraFragment : Fragment() {
                 }
                 else
                 {
-                    Log.d(TAG, "detected: " + visionText.text)
-                    val action = CameraFragmentDirections.actionCameraFragmentToPopUpFragment(visionText.text)
-
-                    view?.findNavController()?.navigate(action)
+                    if (resultsString != "") {    //if the results string already has a result in it then the next result is added with a dividing comma
+                        resultsString += ",${visionText.text}"
+                        Toast.makeText(
+                            requireContext(),
+                            "I got ${visionText.text}",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        numOfDice -= 1
+                        fragmentCameraBinding.resultsTextCam.text = resultsString
+                    }
+                    else {
+                        Toast.makeText(
+                            requireContext(),
+                            "I got ${visionText.text}",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        resultsString = visionText.text //otherwise assign the value
+                        Log.d(TAG, "herea gain $visionText")
+                        numOfDice -= 1
+                        if(numResults == 1) {
+                            val action = CameraFragmentDirections.actionCameraFragmentToPopUpFragment(
+                                visionText.text
+                            )
+                            view?.findNavController()?.navigate(action)
+                        }
+                    }
+                    if(numOfDice == 0){
+                        fragmentCameraBinding.imageCaptureButton.text = "Proceed"
+                    }
                 }
             }
             .addOnFailureListener { e ->
@@ -294,27 +364,5 @@ class CameraFragment : Fragment() {
                     add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
                 }
             }.toTypedArray()
-    }
-}
-
-private class LuminosityAnalyzer(private val listener: LumaListener) : ImageAnalysis.Analyzer {
-
-    private fun ByteBuffer.toByteArray(): ByteArray {
-        rewind()    // Rewind the buffer to zero
-        val data = ByteArray(remaining())
-        get(data)   // Copy the buffer into a byte array
-        return data // Return the byte array
-    }
-
-    override fun analyze(image: ImageProxy) {
-
-        val buffer = image.planes[0].buffer
-        val data = buffer.toByteArray()
-        val pixels = data.map { it.toInt() and 0xFF }
-        val luma = pixels.average()
-
-        listener(luma)
-
-        image.close()
     }
 }

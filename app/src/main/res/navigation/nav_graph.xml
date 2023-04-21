@@ -6,15 +6,6 @@
     app:startDestination="@id/frontFragment">
 
     <fragment
-        android:id="@+id/sheetFragment"
-        android:name="com.example.charactersheet.SheetFragment"
-        android:label="fragment_sheet"
-        tools:layout="@layout/fragment_sheet" >
-        <action
-            android:id="@+id/action_sheetFragment_to_cameraFragment"
-            app:destination="@id/cameraFragment" />
-    </fragment>
-    <fragment
         android:id="@+id/cameraFragment"
         android:name="com.example.charactersheet.CameraFragment"
         android:label="fragment_camera"
@@ -22,6 +13,9 @@
         <action
             android:id="@+id/action_cameraFragment_to_popUpFragment"
             app:destination="@id/popUpFragment" />
+        <argument
+            android:name="numberOfDiceS"
+            app:argType="string" />
     </fragment>
     <fragment
         android:id="@+id/popUpFragment"
@@ -30,9 +24,6 @@
         <argument
             android:name="result"
             app:argType="string" />
-        <action
-            android:id="@+id/action_popUpFragment_to_sheetFragment"
-            app:destination="@id/sheetFragment" />
         <action
             android:id="@+id/action_popUpFragment_to_cameraFragment"
             app:destination="@id/cameraFragment" />

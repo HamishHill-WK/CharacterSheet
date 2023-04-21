@@ -5,7 +5,6 @@ import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.fragment.app.Fragment
@@ -17,8 +16,6 @@ import com.example.charactersheet.databinding.FragmentPopUpBinding
 class PopUpFragment : Fragment() {
     private var _binding: FragmentPopUpBinding? = null
 
-    // This property is only valid between onCreateView and
-    // onDestroyView.
     private val binding get() = _binding!!
 
     private lateinit var recyclerView: FrameLayout
@@ -39,11 +36,9 @@ class PopUpFragment : Fragment() {
         savedInstanceState: Bundle?
     ): View? {
         // Inflate the layout for this fragment
-
         _binding = FragmentPopUpBinding.inflate(inflater, container, false)
         val view = binding.root
         return view
-        //return inflater.inflate(R.layout.fragment_pop_up, container, false)
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -58,19 +53,15 @@ class PopUpFragment : Fragment() {
             Log.d("fragment", letterId)
         }
 
-        val buttonY: Button =binding.YesButton
-        val buttonN: Button =binding.NoButton
-
-        buttonY.setOnClickListener{
+        binding.YesButton.setOnClickListener{
             Log.d(TAG, letterId)
 
             val action = PopUpFragmentDirections.actionPopUpFragmentToFrontFragment(letterId)
-
             view.findNavController().navigate(action)
         }
 
-        buttonN.setOnClickListener{
-            val action = PopUpFragmentDirections.actionPopUpFragmentToCameraFragment()
+        binding.NoButton.setOnClickListener{
+            val action = PopUpFragmentDirections.actionPopUpFragmentToCameraFragment("1")
             view.findNavController().navigate(action)
         }
     }

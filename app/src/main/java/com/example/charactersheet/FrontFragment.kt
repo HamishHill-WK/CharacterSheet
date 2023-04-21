@@ -9,7 +9,6 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.TextView
-import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.navigation.findNavController
 import com.example.charactersheet.databinding.FragmentFrontBinding
@@ -40,7 +39,6 @@ class FrontFragment : Fragment() {
 
         arguments?.let {
             letterId = it.getString(RESULT).toString()
-            Log.d("front frag", letterId!!)
         }
     }
 
@@ -60,46 +58,47 @@ class FrontFragment : Fragment() {
         if(letterId != null) {  //when the application returns to this fragment check if a value has been assigned to letterid
             resultText.text = letterId!!
             if(resultText.text.toString()  in (1..20).toString())   //if the result is a number between 1 and 20
-            Thread{connect(letterId.toString())}.start()    //send number to server
+                Thread{connect(letterId.toString())}.start()    //send number to server
         }
 
-        val button = binding.ConnectButton
-        val button1 = binding.HealthButton
-
-        button.setOnClickListener{
+        binding.ConnectButton.setOnClickListener{
             Thread{connect()}.start()
         }
 
-        button1.setOnClickListener{
-            val action = FrontFragmentDirections.actionFrontFragmentToCameraFragment()
+        binding.HealthButton.setOnClickListener{
+            Log.d(TAG, "${binding.thresholdValue.text.toString().toInt()}")
+            val action = FrontFragmentDirections.actionFrontFragmentToCameraFragment(binding.thresholdValue.text.toString())
             view.findNavController().navigate(action)
         }
 
-        binding.ConnectionCode.addTextChangedListener (object : TextWatcher {
+        binding.thresholdPlus.setOnClickListener{   //increase the number of dice the user will roll
+            binding.thresholdValue.text = (binding.thresholdValue.text.toString().toInt() + 1).toString()
+        }
 
+        binding.thresholdMinus.setOnClickListener{
+            val x = binding.thresholdValue.text.toString().toInt()
+            Log.d(TAG, "$x")
+            if ( x > 1) //so the user cannot choose to roll less than 1 dice
+                binding.thresholdValue.text = (x - 1).toString()
+        }
+
+        binding.ConnectionCode.addTextChangedListener (object : TextWatcher {
             override fun afterTextChanged(s: Editable?) {
                ipNum = s.toString()
             }
-
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {
-            }
-
+            }//these 2 overrides need to be declared or this will not compile
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                println("text touched")
             }
         })
 
         binding.ConnectionPort.addTextChangedListener (object : TextWatcher {
-
             override fun afterTextChanged(s: Editable?) {
                port = s.toString()
             }
-
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {
-            }
-
+            }//these 2 overrides need to be declared or this will not compile
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                println("text touched")
             }
         })
     }
@@ -108,61 +107,40 @@ class FrontFragment : Fragment() {
                             //this is a test function to check if a server exists
                             //server with DiceBot active will reply with discord server name the bot is connected to
         if(port != "" && ipNum != ""){ //check we have a port and ip number
+            var s = ""
             try {
                 val client = Socket(ipNum, port.toInt())
                 val output = PrintWriter(client.getOutputStream(), true)
                 val input = BufferedReader(InputStreamReader(client.inputStream))
                 output.println(0)
-                var s = ""
                 var search = true
                 while(search) {
                     s += input.read().toChar()
                     if(s.endsWith(" SERVERNAMEEND"))    //this string is added by the server to the end of the discord server name
                         search = false                        //to prevent getting stuck reading the input stream
                 }
-                Toast.makeText(
-                    requireContext(),
-                    "server `$s ` found",
-                    Toast.LENGTH_SHORT
-                ).show()
                 binding.ServerNameHolder.text = s.substringBefore(" SERVERNAMEEND")//string removed for assignment to UI textview
                 client.close()
             } catch (exc: Exception) {//prevents crash if network connection fails
                 Log.e(TAG, "connection failed", exc)
-                Toast.makeText(
-                    requireContext(),
-                    "no server found, please try again",
-                    Toast.LENGTH_SHORT
-                ).show()
-                binding.ServerNameHolder.text = "*no server found*"
             }
         }
     }
     
-    private fun connect(S: String){ //sends message to server at specified port
+    private fun connect(S: String){ //sends message to server at specified port and ip
         try {
             val client = Socket(ipNum, port.toInt())
             val output = PrintWriter(client.getOutputStream(), true)
-            println(S)
-            output.println(S)
+            output.println(S) //send string on output stream
             client.close()
-            Toast.makeText(
-                requireContext(),
-                "sent $S to `${binding.ServerNameHolder.text} `",
-                Toast.LENGTH_SHORT
-            ).show()
         } catch (exc: Exception) {  //prevents crash if network connection fails
             Log.e(TAG, "connection failed", exc)
-            Toast.makeText(
-                requireContext(),
-                "no server found, please try again",
-                Toast.LENGTH_SHORT
-            ).show()
         }
     }
 
     companion object {
         val TAG = "frontfrag"
         val RESULT = "result"
+        val NUMDICE = "1"
     }
 }
