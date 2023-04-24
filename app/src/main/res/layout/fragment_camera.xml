@@ -18,61 +18,43 @@
         app:scaleType="fillStart"
         />
 
-    <Button
+    <ImageButton
         android:id="@+id/image_capture_button"
         android:layout_width="110dp"
         android:layout_height="110dp"
         android:layout_marginBottom="50dp"
         android:layout_marginEnd="50dp"
         android:elevation="2dp"
-        android:text="@string/capture"
+        android:background="@color/green_light"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintLeft_toLeftOf="parent"
+        android:src="@drawable/ic_baseline_photo_camera_24"
+
         />
-
-    <androidx.appcompat.widget.AppCompatImageButton
-        android:id="@+id/threshold_minus"
-        android:layout_width="50dp"
-        android:layout_height="50dp"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintLeft_toLeftOf="parent"
-        android:src="@drawable/minus1"
-        />
-
-    <TextView
-        android:id="@+id/threshold_value"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginLeft="0dp"
-        android:layout_marginRight="0dp"
-        android:layout_marginBottom="10dp"
-        android:background="@color/bottom_sheet_background"
-        android:gravity="center"
-        android:text="1"
-        android:textColor="@color/bottom_sheet_text_color"
-        android:textSize="25sp"
-        app:layout_constraintBottom_toBottomOf="@id/threshold_minus"
-        app:layout_constraintLeft_toRightOf="@id/threshold_minus"/>
-
-    <androidx.appcompat.widget.AppCompatImageButton
-        android:id="@+id/threshold_plus"
-        android:layout_width="50dp"
-        android:layout_height="50dp"
-        app:layout_constraintBottom_toBottomOf="@id/threshold_minus"
-        app:layout_constraintLeft_toRightOf="@id/threshold_value"
-        android:src="@drawable/plus1"/>
 
     <Button
         android:id="@+id/removeLastButton"
         android:layout_width="110dp"
         android:layout_height="110dp"
-        android:layout_marginBottom="50dp"
+        android:layout_marginBottom="10dp"
         android:layout_marginEnd="50dp"
         android:layout_marginLeft="150dp"
         android:elevation="2dp"
         android:text="Remove Last"
         app:layout_constraintTop_toTopOf="@+id/image_capture_button"
         app:layout_constraintLeft_toRightOf="@+id/image_capture_button"
+        />
+
+    <Button
+        android:id="@+id/proceedButton"
+        android:layout_width="110dp"
+        android:layout_height="90dp"
+        android:layout_marginBottom="10dp"
+        android:layout_marginEnd="10dp"
+        android:elevation="2dp"
+        android:text="Proceed"
+        app:layout_constraintBottom_toTopOf="@+id/removeLastButton"
+        app:layout_constraintLeft_toLeftOf="@+id/removeLastButton"
         />
 
     <TextView

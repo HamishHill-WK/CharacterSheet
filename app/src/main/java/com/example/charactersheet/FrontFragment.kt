@@ -1,5 +1,6 @@
 package com.example.charactersheet
 
+import android.content.Context
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
@@ -13,6 +14,7 @@ import androidx.fragment.app.Fragment
 import androidx.navigation.findNavController
 import com.example.charactersheet.databinding.FragmentFrontBinding
 import java.io.BufferedReader
+import java.io.File
 import java.io.InputStreamReader
 import java.io.PrintWriter
 import java.net.Socket
@@ -33,6 +35,8 @@ class FrontFragment : Fragment() {
     private var letterId: String? = null
 
     private lateinit var resultText: TextView
+    private lateinit var ipText: TextView
+    private lateinit var portText: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -51,15 +55,33 @@ class FrontFragment : Fragment() {
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        recyclerView = binding.root
 
+        recyclerView = binding.root
+        ipText = binding.ConnectionCode
+        portText = binding.ConnectionPort
+
+        try{
+            val file = File(requireContext().filesDir, "ipnum")
+            ipNum = file.bufferedReader().readLine().toString()
+
+            val file1 = File(requireContext().filesDir, "port")
+            port = file1.bufferedReader().readLine().toString()
+
+            ipText.text = ipNum
+            portText.text = port
+        }
+        catch (exc: Exception){
+            Log.d(TAG, "no file, $exc")
+            saveFile("ipnum", ipNum)
+            saveFile("port", port)
+        }
 
         resultText = binding.RollResult
 
         if(letterId != null) {  //when the application returns to this fragment check if a value has been assigned to letterid
             resultText.text = letterId!!
-            if(resultText.text.toString()  in (1..20).toString())   //if the result is a number between 1 and 20
-                Thread{connect(letterId.toString())}.start()    //send number to server
+            if (letterId.toString() != "null")//if the result is a number between 1 and 20
+            Thread{connect(letterId.toString())}.start()    //send number to server
         }
 
         binding.ConnectButton.setOnClickListener{
@@ -67,6 +89,8 @@ class FrontFragment : Fragment() {
         }
 
         binding.HealthButton.setOnClickListener {
+            saveFile("ipnum", ipNum)
+            saveFile("port", port)
             val action = FrontFragmentDirections.actionFrontFragmentToCameraFragment()
             view.findNavController().navigate(action)
         }
@@ -90,6 +114,12 @@ class FrontFragment : Fragment() {
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
             }
         })
+    }
+
+    private fun saveFile(filename: String,filecontent: String){
+        requireContext().openFileOutput(filename, Context.MODE_PRIVATE).use {
+            it.write(filecontent.toByteArray())
+        }
     }
 
     private fun connect() { //sends message to server at specified port

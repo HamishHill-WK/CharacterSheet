@@ -1,6 +1,8 @@
 package com.example.charactersheet
 
 import android.os.Bundle
+import android.text.Editable
+import android.text.TextWatcher
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
@@ -59,6 +61,16 @@ class PopUpFragment : Fragment() {
             val action = PopUpFragmentDirections.actionPopUpFragmentToFrontFragment(letterId)
             view.findNavController().navigate(action)
         }
+
+        binding.resultsText.addTextChangedListener (object : TextWatcher {
+            override fun afterTextChanged(s: Editable?) {
+                letterId = s.toString()
+            }
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {
+            }//these 2 overrides need to be declared or this will not compile
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+            }
+        })
 
         binding.NoButton.setOnClickListener{
             val action = PopUpFragmentDirections.actionPopUpFragmentToCameraFragment()

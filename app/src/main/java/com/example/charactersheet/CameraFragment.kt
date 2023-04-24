@@ -5,11 +5,8 @@ import android.content.ContentValues
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Color
-import android.graphics.Rect
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.os.Environment
 import android.provider.MediaStore
 import android.util.Log
 import android.view.LayoutInflater
@@ -28,7 +25,9 @@ import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.navigation.findNavController
 import com.example.charactersheet.databinding.FragmentCameraBinding
+import com.google.android.gms.tasks.Task
 import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.text.Text
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import org.tensorflow.lite.support.image.ImageProcessor
@@ -38,10 +37,7 @@ import org.tensorflow.lite.task.core.BaseOptions
 import org.tensorflow.lite.task.vision.detector.Detection
 import org.tensorflow.lite.task.vision.detector.ObjectDetector
 import org.tensorflow.lite.task.vision.detector.ObjectDetector.ObjectDetectorOptions
-import java.io.File
-import java.io.FileOutputStream
 import java.io.IOException
-import java.io.OutputStream
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.ExecutorService
@@ -61,12 +57,11 @@ class CameraFragment : Fragment() {
 
     private lateinit var recyclerView: FrameLayout
 
-    private lateinit var maxDice: String
-    private var numOfDice  = 1 // the total number of dice the player wants to roll
-    private var numResults = 1 //size of each batch to detect
     private var resultsString = ""
 
     private var noPerm = false
+
+    private var clickedCapture = false
 
     override fun onDestroyView() {
         _fragmentCameraBinding = null
@@ -92,11 +87,9 @@ class CameraFragment : Fragment() {
         val cameraPermissionResultReceiver = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
             noPerm = if (it) {
                 // permission granted
-                Log.d(TAG, "permissionganted")
                 startCamera()
                 false
             } else {
-                Log.d(TAG, "no permiss")
                 true
             }
         }
@@ -109,32 +102,22 @@ class CameraFragment : Fragment() {
             cameraPermissionResultReceiver.launch(Manifest.permission.CAMERA)
 
         if (allPermissionsGranted()) {
-            Log.d(TAG, "permissionganted")
             startCamera()
         } else {
-            Log.d(TAG, "no permiss")
             this.activity?.let {
                 ActivityCompat.requestPermissions(
                     it, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS
                 )
             }
         }
-        fragmentCameraBinding.imageCaptureButton.setOnClickListener { takePhoto() }
+        fragmentCameraBinding.imageCaptureButton.setOnClickListener {
+            fragmentCameraBinding.imageCaptureButton.visibility = View.INVISIBLE
+
+            takePhoto()
+
+        }
         fragmentCameraBinding.removeLastButton.setOnClickListener { removeLast() }
-
-        fragmentCameraBinding.thresholdPlus.setOnClickListener{   //increase the number of dice the user will roll
-            if(numOfDice < 10){
-                numOfDice +=1
-            fragmentCameraBinding.thresholdValue.text = numOfDice.toString()
-            }
-        }
-
-        fragmentCameraBinding.thresholdMinus.setOnClickListener{
-            if ( numOfDice > 1) {
-                numOfDice -= 1
-                fragmentCameraBinding.thresholdValue.text = numOfDice.toString()
-            }
-        }
+        fragmentCameraBinding.proceedButton.setOnClickListener{ proceed() }
 
         return view
     }
@@ -147,21 +130,16 @@ class CameraFragment : Fragment() {
 
     private fun takePhoto() {
         // Get a stable reference of the modifiable image capture use case
-        fragmentCameraBinding.imageCaptureButton.isClickable = false
-        val imageCapture = imageCapture ?: return
-        if(numOfDice == 0){
-            Log.d(TAG, "here  ")
-            val action = CameraFragmentDirections.actionCameraFragmentToPopUpFragment(resultsString)
-            view?.findNavController()?.navigate(action)
-        }
+        //fragmentCameraBinding.imageCaptureButton.isClickable = false
 
-        Log.d(TAG, "take photo called")
+        val imageCapture = imageCapture ?: return
+
         // Create time stamped name and MediaStore entry.
         val name = SimpleDateFormat(FILENAME_FORMAT, Locale.US)
             .format(System.currentTimeMillis())
         val contentValues = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, name)
-            put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+            put(MediaStore.MediaColumns.MIME_TYPE, "image/png")
             if(Build.VERSION.SDK_INT > Build.VERSION_CODES.P) {
                 put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/CameraX-Image")
             }
@@ -207,26 +185,15 @@ class CameraFragment : Fragment() {
                 }
             }
         )
-        fragmentCameraBinding.imageCaptureButton.isClickable = true
     }
 
-    //private var resultList: MutableList<Bitmap> = mutableListOf() //list of bitmaps containing top face image
-
     private fun isPixelIn(img: Bitmap, results: List<Detection>): Bitmap {
-        val list: MutableList<Rect> = mutableListOf()
-        if(results.size > 1)//if there is more than one result
-            for (r in results)
-                list.add( Rect(r.boundingBox.left.toInt(), r.boundingBox.top.toInt()
-                    , r.boundingBox.right.toInt(), r.boundingBox.bottom.toInt()))
-
         for (y  in 0 until img.height)  //loop from 0 to img.height-1
             for (c  in 0 until img.width){//loop from 0 to img.width-1
-
                 if(results.size == 1){//if theres only one bounding box to check against
                     val vectorAB = listOf(results[0].boundingBox.right.toInt() -results[0].boundingBox.left.toInt(), 0)
                     val vectorAC = listOf(0, results[0].boundingBox.bottom.toInt() -results[0].boundingBox.top.toInt())
                     val vectorAM =  listOf(c - results[0].boundingBox.left.toInt(), y - results[0].boundingBox.top.toInt())
-
                     //if AM.AB > AB.AB
                     if(vectorAM[0] * vectorAB[0] + vectorAM[1] * vectorAB[1] > vectorAB[0] * vectorAB[0] + vectorAB[1] * vectorAB[1] ) {
                         img.setPixel(c, y, Color.BLACK)
@@ -245,72 +212,17 @@ class CameraFragment : Fragment() {
                     if(vectorAM[0] * vectorAC[0] + vectorAM[1] * vectorAC[1] <0 )
                         img.setPixel(c, y, Color.BLACK)
                 }
-
-                if(list.size > 1)//if there is more than one result in the image
-                    for(i in list){
-                        if(c> i.left || c < i.right &&
-                            y > i.top|| y < i.bottom) //if pixel is inside a bounding box then continue to next loop
-                                continue
-
-                        else    //else set colour to black
-                            img.setPixel(c, y, Color.BLACK)
-                }
             }
 
-
-        saveMediaToStorage(img)
+        //saveMediaToStorage(img)
         return img
     }
 
-    //debug function for saving edited bitmaps to device gallery **DELETE LATER**
-    fun saveMediaToStorage(bitmap: Bitmap) {
-        //Generating a file name
-        val filename = "${System.currentTimeMillis()}.jpg"
-
-        //Output stream
-        var fos: OutputStream? = null
-
-        //For devices running android >= Q
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            //getting the contentResolver
-            context?.contentResolver?.also { resolver ->
-
-                //Content resolver will process the contentvalues
-                val contentValues = ContentValues().apply {
-
-                    //putting file information in content values
-                    put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
-                    put(MediaStore.MediaColumns.MIME_TYPE, "image/jpg")
-                    put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES)
-                }
-
-                //Inserting the contentValues to contentResolver and getting the Uri
-                val imageUri: Uri? =
-                    resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
-
-                //Opening an outputstream with the Uri that we got
-                fos = imageUri?.let { resolver.openOutputStream(it) }
-            }
-        } else {
-            //These for devices running on android < Q
-            //So I don't think an explanation is needed here
-            val imagesDir =
-                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES)
-            val image = File(imagesDir, filename)
-            fos = FileOutputStream(image)
-        }
-
-        fos?.use {
-            //Finally writing the bitmap to the output stream that we opened
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 100, it)
-            //context?.toast("Saved to Photos")
-        }
-    }
-
+    private var textChanged = false;
     private fun DetectObjs(image: Bitmap, rot: Int) {
         val options = ObjectDetectorOptions.builder()
             .setBaseOptions(BaseOptions.builder().useGpu().build()).setScoreThreshold(0.80f)
-            .setMaxResults(numResults)
+            .setMaxResults(1)
             .build()
         val objectDetector = ObjectDetector.createFromFileAndOptions(
             context, "android(6).tflite", options
@@ -325,12 +237,28 @@ class CameraFragment : Fragment() {
         val results: List<Detection> = objectDetector.detect(tensorImage)
         if(results.isEmpty()){
             Toast.makeText(requireContext(), "no Dice detected, please try again", Toast.LENGTH_SHORT).show()
+            fragmentCameraBinding.imageCaptureButton.visibility = View.VISIBLE
             return
         }
             val image1: Bitmap = isPixelIn(image.copy(Bitmap.Config.ARGB_8888, true), results)  //all pixels outside the detected object's bounding box have their colour set to black
             textRecog(image1, rot)//edited bitmap is passed to text recognition algorithm
     }
 
+    private fun getRes(): String { return resultsString }
+    private fun setRes(str: String) {
+        if(!textChanged){
+        textChanged = true
+        resultsString= str
+        }
+    }
+
+    private fun proceed()
+    {
+        val action = CameraFragmentDirections.actionCameraFragmentToPopUpFragment(
+            getRes()
+        )
+        view?.findNavController()?.navigate(action)
+    }
     // Initialize CameraX, and prepare to bind the camera use cases
     private fun startCamera() {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(requireContext())
@@ -369,21 +297,37 @@ class CameraFragment : Fragment() {
     }
 
     private fun removeLast(){
-        numOfDice += 1
         resultsString = resultsString.substringBeforeLast(',')
         fragmentCameraBinding.resultsTextCam.text  =resultsString
     }
 
-    private fun textRecog (image: Bitmap, rot: Int ) {
+    private fun textRecog(image: InputImage): Task<Text> {
         val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-        for (x in 0 until 4){
-            val rotation = x * 90
-        val img = InputImage.fromBitmap(image, rotation)
-            val result = recognizer.process(img)
-            .addOnSuccessListener { visionText ->
-                // Task completed successfully
-                // ...
-                if (visionText.text == "" && x == 3) {
+        return recognizer.process(image)
+    }
+
+    private fun textRecog (image: Bitmap, rot: Int ) {
+        var text1 = ""
+        for( x in 0 until 4){
+            val img = InputImage.fromBitmap(image, x * rot)
+            val y = textRecog(img)
+            y.addOnSuccessListener {
+                text1 = y.result.text
+                Log.d(TAG, "here  $text1")
+                if (text1 != "") {
+                    if (resultsString != "" )
+                        setRes("$resultsString,$text1")
+
+                    else if (resultsString == "") {
+                        setRes( text1)
+                    }
+                    if (x == 3){
+                        clickedCapture = false
+                    if( textChanged)
+                        textChanged = false
+                    }
+                    fragmentCameraBinding.resultsTextCam.text = resultsString
+                } else if (text1 == "") {
                     Toast.makeText(
                         requireContext(),
                         "no text found, please try again",
@@ -391,47 +335,16 @@ class CameraFragment : Fragment() {
                     ).show()
                     Log.d(TAG, "no text in image ")
                 }
-                else if (visionText.text != "")
-                {
-                    if (resultsString != "") {    //if the results string already has a result in it then the next result is added with a dividing comma
-                        resultsString += ",${visionText.text}"
-                        Toast.makeText(
-                            requireContext(),
-                            "I got ${visionText.text}",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                        numOfDice -= 1
-//                        fragmentCameraBinding.resultsTextCam.text = resultsString
-                    }
-                    else {
-                        Toast.makeText(
-                            requireContext(),
-                            "I got ${visionText.text}",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                        resultsString = visionText.text //otherwise assign the value
-                        Log.d(TAG, "herea gain $visionText")
-                        numOfDice -= 1
-                        if(numResults == 1) {
-                            val action = CameraFragmentDirections.actionCameraFragmentToPopUpFragment(
-                                visionText.text
-                            )
-                            view?.findNavController()?.navigate(action)
-                        }
-                    }
-                    if(numOfDice == 0){
-                        fragmentCameraBinding.imageCaptureButton.text = "Proceed"
-                    }
+                if (x == 3){
+                    fragmentCameraBinding.imageCaptureButton.visibility = View.VISIBLE
+                    clickedCapture = false
                 }
-            }
-            .addOnFailureListener { e -> Log.d(TAG, "no text $e ")
             }
         }
     }
 
     companion object {
         private const val TAG = "CameraFragment"
-        val NUMBER = "1"
         private const val FILENAME_FORMAT = "yyyy-MM-dd-HH-mm-ss-SSS"
         private const val REQUEST_CODE_PERMISSIONS = 10
         private val REQUIRED_PERMISSIONS =
