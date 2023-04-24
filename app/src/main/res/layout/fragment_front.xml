@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    tools:context=".FrontFragment">
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:padding="8pt"
+        >
+
+        <TextView
+            android:id="@+id/ServerNameHolder"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/servername"
+            android:textSize="25sp"
+            android:minHeight="48dp"
+            android:textColorHint="#757575"
+            app:layout_constraintLeft_toLeftOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            android:autofillHints="" />
+
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:id="@+id/StatusContainer"
+            android:layout_width="378dp"
+            android:layout_height="234dp"
+            app:layout_constraintLeft_toLeftOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/ServerNameHolder">
+
+            <ImageButton
+                android:id="@+id/HealthButton"
+                android:layout_width="114dp"
+                android:layout_marginRight="100dp"
+                android:layout_height="114dp"
+                android:contentDescription="@string/app_name"
+                app:layout_constraintLeft_toLeftOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentRight="true"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                app:layout_constraintTop_toBottomOf="@id/HealthButton"
+                app:layout_constraintLeft_toLeftOf="@id/HealthButton"
+                >
+
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/threshold_minus"
+                    android:layout_width="50dp"
+                    android:layout_height="50dp"
+                    />
+
+                <TextView
+                    android:id="@+id/threshold_value"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginLeft="0dp"
+                    android:layout_marginRight="0dp"
+                    android:gravity="center"
+                    android:text="1"
+                    android:textColor="@color/bottom_sheet_text_color"
+                    android:textSize="25sp" />
+
+                <androidx.appcompat.widget.AppCompatImageButton
+                    android:id="@+id/threshold_plus"
+                    android:layout_width="50dp"
+                    android:layout_height="50dp"
+                    />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/HealthText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:padding="5dp"
+                android:text="Roll"
+                android:textSize="25sp"
+                app:layout_constraintLeft_toLeftOf="@id/HealthButton"
+                app:layout_constraintTop_toTopOf="@id/HealthButton" />
+
+            <EditText
+                android:id="@+id/ConnectionCode"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:inputType="number"
+                android:digits="0123456789."
+                android:padding="5dp"
+                android:text="000.000.0.00"
+                android:textSize="25sp"
+                app:layout_constraintTop_toBottomOf="@id/ConnectButton"
+                app:layout_constraintLeft_toLeftOf="@id/ConnectButton" />
+
+            <EditText
+                android:id="@+id/ConnectionPort"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:inputType="number"
+                android:padding="5dp"
+                android:text="0000"
+                android:textSize="25sp"
+                app:layout_constraintTop_toBottomOf="@id/ConnectionCode"
+                app:layout_constraintLeft_toLeftOf="@id/ConnectionCode" />
+
+            <ImageButton
+                android:id="@id/ConnectButton"
+                android:layout_width="114dp"
+                android:layout_height="114dp"
+                android:layout_marginLeft="50dp"
+                android:contentDescription="@string/app_name"
+                app:layout_constraintLeft_toRightOf="@id/HealthButton"
+                app:layout_constraintTop_toTopOf="parent" />
+
+            <TextView
+                android:id="@+id/HitDieText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:padding="5dp"
+                android:text="Connect"
+                android:textSize="25sp"
+                app:layout_constraintLeft_toLeftOf="@id/ConnectButton"
+                app:layout_constraintTop_toTopOf="@id/ConnectButton" />
+
+
+        </androidx.constraintlayout.widget.ConstraintLayout>
+
+        <TextView
+            android:id="@+id/RollResult"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="128dp"
+            android:layout_marginTop="48dp"
+            android:text="@string/rollresult"
+            android:textSize="25sp"
+            app:layout_constraintStart_toStartOf="@id/StatusContainer"
+            app:layout_constraintTop_toBottomOf="@id/StatusContainer" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+</FrameLayout>

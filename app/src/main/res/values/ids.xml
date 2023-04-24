@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <item name="StatusContainer" type="id" />
+    <item name="Connect" type="id" />
+    <item name="ConnectButton" type="id" />
 </resources>
