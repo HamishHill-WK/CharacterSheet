@@ -67,7 +67,6 @@ class PopUpFragment : Fragment() {
     }
 
     companion object {
-        val RESULT = "result"
         val TAG = "PopUpFragment.kt"
     }
 }

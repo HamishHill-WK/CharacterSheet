@@ -14,7 +14,7 @@
             android:id="@+id/action_cameraFragment_to_popUpFragment"
             app:destination="@id/popUpFragment" />
         <argument
-            android:name="numberOfDiceS"
+            android:name="number"
             app:argType="string" />
     </fragment>
     <fragment
@@ -40,7 +40,10 @@
         android:label="FrontFragment" >
         <action
             android:id="@+id/action_frontFragment_to_cameraFragment"
-            app:destination="@id/cameraFragment" />
+            app:destination="@id/cameraFragment" >
+            <argument
+                android:name="number" />
+        </action>
         <argument
             android:name="result"
             app:argType="string" />

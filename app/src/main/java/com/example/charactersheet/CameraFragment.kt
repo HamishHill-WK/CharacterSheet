@@ -5,8 +5,11 @@ import android.content.ContentValues
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Color
+import android.graphics.Rect
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
 import android.provider.MediaStore
 import android.util.Log
 import android.view.LayoutInflater
@@ -24,6 +27,7 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.navigation.findNavController
+import androidx.navigation.fragment.navArgs
 import com.example.charactersheet.databinding.FragmentCameraBinding
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
@@ -35,7 +39,10 @@ import org.tensorflow.lite.task.core.BaseOptions
 import org.tensorflow.lite.task.vision.detector.Detection
 import org.tensorflow.lite.task.vision.detector.ObjectDetector
 import org.tensorflow.lite.task.vision.detector.ObjectDetector.ObjectDetectorOptions
+import java.io.File
+import java.io.FileOutputStream
 import java.io.IOException
+import java.io.OutputStream
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.ExecutorService
@@ -60,8 +67,9 @@ class CameraFragment : Fragment() {
     private var numResults = 1 //size of each batch to detect
     private var resultsString = ""
 
-    var noPerm = false
+    private var noPerm = false
 
+    val args : CameraFragmentArgs by navArgs()
     override fun onDestroyView() {
         _fragmentCameraBinding = null
         super.onDestroyView()
@@ -72,8 +80,8 @@ class CameraFragment : Fragment() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         arguments?.let {
-            maxDice = it.getString(FrontFragment.NUMDICE).toString()
-           // numOfDice = maxDice//.toInt()
+            maxDice = it.getString(args.number).toString()
+            //numOfDice = maxDice.toInt()
             Log.d(TAG, "$numOfDice $maxDice")
         }
 
@@ -94,14 +102,14 @@ class CameraFragment : Fragment() {
         cameraExecutor = Executors.newSingleThreadExecutor()
 
         val cameraPermissionResultReceiver = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
-            if (it) {
+            noPerm = if (it) {
                 // permission granted
                 Log.d(TAG, "permissionganted")
                 startCamera()
-                noPerm =false
+                false
             } else {
                 Log.d(TAG, "no permiss")
-                noPerm = true
+                true
             }
         }
         //theses two sections both check that the application has the required permissions
@@ -136,6 +144,7 @@ class CameraFragment : Fragment() {
 
     private fun takePhoto() {
         // Get a stable reference of the modifiable image capture use case
+        fragmentCameraBinding.imageCaptureButton.isClickable = false
         val imageCapture = imageCapture ?: return
         if(numOfDice == 0){
             Log.d(TAG, "here  ")
@@ -174,7 +183,8 @@ class CameraFragment : Fragment() {
 
                 override fun
                         onImageSaved(output: ImageCapture.OutputFileResults){
-                    val msg = "Photo capture succeeded: ${output.savedUri}"
+
+                    val msg = "Photo capture succeeded" // : ${output.savedUri}"
                     Toast.makeText(requireContext(), msg, Toast.LENGTH_SHORT).show()
                     Log.d(TAG, msg)
 
@@ -194,13 +204,107 @@ class CameraFragment : Fragment() {
                 }
             }
         )
+        fragmentCameraBinding.imageCaptureButton.isClickable = true
     }
 
-    var resultList: MutableList<Bitmap> = mutableListOf() //list of bitmaps containing top face images
+    //private var resultList: MutableList<Bitmap> = mutableListOf() //list of bitmaps containing top face image
+
+    private fun isPixelIn(img: Bitmap, results: List<Detection>): Bitmap {
+        val list: MutableList<Rect> = mutableListOf()
+        if(results.size > 1)//if there is more than one result
+            for (r in results)
+                list.add( Rect(r.boundingBox.left.toInt(), r.boundingBox.top.toInt()
+                    , r.boundingBox.right.toInt(), r.boundingBox.bottom.toInt()))
+
+        for (y  in 0 until img.height)  //loop from 0 to img.height-1
+            for (c  in 0 until img.width){//loop from 0 to img.width-1
+
+                if(results.size == 1){//if theres only one bounding box to check against
+                    val vectorAB = listOf(results[0].boundingBox.right.toInt() -results[0].boundingBox.left.toInt(), 0)
+                    val vectorAC = listOf(0, results[0].boundingBox.bottom.toInt() -results[0].boundingBox.top.toInt())
+                    val vectorAM =  listOf(c - results[0].boundingBox.left.toInt(), y - results[0].boundingBox.top.toInt())
+                        //if AM.AB < 0
+                        if((vectorAM[0] * vectorAB[0] + vectorAM[1] * vectorAB[1]) < 0 ) {  //outside bounding box
+                            img.setPixel(c, y, Color.BLACK) //set to black
+                            continue //go to next pixel
+                        }
+                        //or AM.AB > AB.AB
+                        if(vectorAM[0] * vectorAB[0] + vectorAM[1] * vectorAB[1] > vectorAB[0] * vectorAB[0] + vectorAB[1] * vectorAB[1] ) {
+                            img.setPixel(c, y, Color.BLACK)
+                            continue
+                        }//or AM.AC < 0
+                        if(vectorAM[0] * vectorAC[0] + vectorAM[1] * vectorAC[1] <0 ) {
+                            img.setPixel(c, y, Color.BLACK)
+                            continue
+                        }// or AM.AC > AC.AC
+                        if(vectorAM[0] * vectorAC[0] + vectorAM[1] * vectorAC[1] > vectorAC[0] * vectorAC[0] + vectorAC[1] * vectorAC[1])
+                                img.setPixel(c, y, Color.BLACK) //pixel is outside detected object bounding box, set colour to black for text recognition algorithm
+                }
+
+                if(list.size > 1)//if there is more than one result in the image
+                    for(i in list){
+                        if(c> i.left || c < i.right &&
+                            y > i.top|| y < i.bottom) //if pixel is inside a bounding box then continue to next loop
+                                continue
+
+                        else    //else set colour to black
+                            img.setPixel(c, y, Color.BLACK)
+                }
+            }
+
+
+        saveMediaToStorage(img)
+        return img
+    }
+
+    //debug function for saving edited bitmaps to device gallery **DELETE LATER**
+    fun saveMediaToStorage(bitmap: Bitmap) {
+        //Generating a file name
+        val filename = "${System.currentTimeMillis()}.jpg"
+
+        //Output stream
+        var fos: OutputStream? = null
+
+        //For devices running android >= Q
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            //getting the contentResolver
+            context?.contentResolver?.also { resolver ->
+
+                //Content resolver will process the contentvalues
+                val contentValues = ContentValues().apply {
+
+                    //putting file information in content values
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
+                    put(MediaStore.MediaColumns.MIME_TYPE, "image/jpg")
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES)
+                }
+
+                //Inserting the contentValues to contentResolver and getting the Uri
+                val imageUri: Uri? =
+                    resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
+
+                //Opening an outputstream with the Uri that we got
+                fos = imageUri?.let { resolver.openOutputStream(it) }
+            }
+        } else {
+            //These for devices running on android < Q
+            //So I don't think an explanation is needed here
+            val imagesDir =
+                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES)
+            val image = File(imagesDir, filename)
+            fos = FileOutputStream(image)
+        }
+
+        fos?.use {
+            //Finally writing the bitmap to the output stream that we opened
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 100, it)
+            //context?.toast("Saved to Photos")
+        }
+    }
 
     private fun DetectObjs(image: Bitmap, rot: Int) {
         val options = ObjectDetectorOptions.builder()
-            .setBaseOptions(BaseOptions.builder().useGpu().build()).setScoreThreshold(0.70f)
+            .setBaseOptions(BaseOptions.builder().useGpu().build()).setScoreThreshold(0.80f)
             .setMaxResults(numResults)
             .build()
         val objectDetector = ObjectDetector.createFromFileAndOptions(
@@ -214,44 +318,12 @@ class CameraFragment : Fragment() {
         val tensorImage = imageProcessor.process(TensorImage.fromBitmap(image))
 
         val results: List<Detection> = objectDetector.detect(tensorImage)
-        if(results.isEmpty())
-            Toast.makeText(
-                requireContext(),
-                "no Dice detected, please try again",
-                Toast.LENGTH_SHORT
-            ).show()
-        for((x, _) in results.withIndex()) { //each detected face has a new bitmap created for text recognition
-            Log.d(TAG, ("${results[x].boundingBox.left  /*+ (results[x].boundingBox.height()/2).toInt()*/}, "+
-                     "${(results[x].boundingBox.top) /*- (results[x].boundingBox.width()/2)).toInt()*/}"))
-
-            //val image1 = Bitmap.createBitmap(image)
-
-            val image1: Bitmap = image.copy(Bitmap.Config.ARGB_8888, true)
-
-
-            for (y  in  1..results[x].boundingBox.height().toInt())
-                for (c  in  1..results[x].boundingBox.width().toInt())
-                    if(c< results[x].boundingBox.left.toInt() || c > results[x].boundingBox.left.toInt() + results[x].boundingBox.width().toInt()
-                        && y < results[x].boundingBox.top.toInt()||
-                        y > results[x].boundingBox.top.toInt() + results[x].boundingBox.height().toInt()) {
-                        image1.setPixel(c, y, Color.BLACK)
-                    }
-            resultList.add(Bitmap.createBitmap(image1))
-
-            /*resultList.add(Bitmap.createScaledBitmap(Bitmap.createBitmap(image, //0, 0,
-                (results[x].boundingBox.left.toInt()),
-                (results[x].boundingBox.top.toInt() ),
-                results[x].boundingBox.width().toInt(),
-                results[x].boundingBox.height().toInt() ),
-                results[x].boundingBox.width().toInt() ,
-                results[x].boundingBox.height().toInt(),true ))*/
+        if(results.isEmpty()){
+            Toast.makeText(requireContext(), "no Dice detected, please try again", Toast.LENGTH_SHORT).show()
+            return
         }
-
-        for(d in resultList) {
-            val image1 = InputImage.fromBitmap(d, rot)
-            textRecog(image1)
-        }
-        resultList.clear()
+            val image1: Bitmap = isPixelIn(image.copy(Bitmap.Config.ARGB_8888, true), results)  //all pixels outside the detected object's bounding box have their colour set to black
+            textRecog(image1, rot)//edited bitmap is passed to text recognition algorithm
     }
 
     // Initialize CameraX, and prepare to bind the camera use cases
@@ -297,14 +369,16 @@ class CameraFragment : Fragment() {
         fragmentCameraBinding.resultsTextCam.text  =resultsString
     }
 
-    private fun textRecog (img: InputImage) {
+    private fun textRecog (image: Bitmap, rot: Int ) {
         val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-
-        val result = recognizer.process(img)
+        for (x in 0 until 4){
+            val rotation = x * 90
+        val img = InputImage.fromBitmap(image, rotation)
+            val result = recognizer.process(img)
             .addOnSuccessListener { visionText ->
                 // Task completed successfully
                 // ...
-                if (visionText.text == "") {
+                if (visionText.text == "" && x == 3) {
                     Toast.makeText(
                         requireContext(),
                         "no text found, please try again",
@@ -312,7 +386,7 @@ class CameraFragment : Fragment() {
                     ).show()
                     Log.d(TAG, "no text in image ")
                 }
-                else
+                else if (visionText.text != "")
                 {
                     if (resultsString != "") {    //if the results string already has a result in it then the next result is added with a dividing comma
                         resultsString += ",${visionText.text}"
@@ -322,7 +396,7 @@ class CameraFragment : Fragment() {
                             Toast.LENGTH_SHORT
                         ).show()
                         numOfDice -= 1
-                        fragmentCameraBinding.resultsTextCam.text = resultsString
+//                        fragmentCameraBinding.resultsTextCam.text = resultsString
                     }
                     else {
                         Toast.makeText(
@@ -345,15 +419,14 @@ class CameraFragment : Fragment() {
                     }
                 }
             }
-            .addOnFailureListener { e ->
-                // Task failed with an exception
-                // ...
-                Log.d(TAG, "no text $e ")
+            .addOnFailureListener { e -> Log.d(TAG, "no text $e ")
             }
+        }
     }
 
     companion object {
         private const val TAG = "CameraFragment"
+        val NUMBER = "1"
         private const val FILENAME_FORMAT = "yyyy-MM-dd-HH-mm-ss-SSS"
         private const val REQUEST_CODE_PERMISSIONS = 10
         private val REQUIRED_PERMISSIONS =

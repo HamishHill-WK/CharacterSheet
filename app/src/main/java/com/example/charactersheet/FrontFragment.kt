@@ -66,8 +66,9 @@ class FrontFragment : Fragment() {
         }
 
         binding.HealthButton.setOnClickListener{
-            Log.d(TAG, "${binding.thresholdValue.text.toString().toInt()}")
-            val action = FrontFragmentDirections.actionFrontFragmentToCameraFragment(binding.thresholdValue.text.toString())
+            Log.d(TAG, "${binding.thresholdValue.text}")
+            NUMBER = binding.thresholdValue.text.toString()
+            val action = FrontFragmentDirections.actionFrontFragmentToCameraFragment(NUMBER)
             view.findNavController().navigate(action)
         }
 
@@ -77,7 +78,6 @@ class FrontFragment : Fragment() {
 
         binding.thresholdMinus.setOnClickListener{
             val x = binding.thresholdValue.text.toString().toInt()
-            Log.d(TAG, "$x")
             if ( x > 1) //so the user cannot choose to roll less than 1 dice
                 binding.thresholdValue.text = (x - 1).toString()
         }
@@ -141,6 +141,6 @@ class FrontFragment : Fragment() {
     companion object {
         val TAG = "frontfrag"
         val RESULT = "result"
-        val NUMDICE = "1"
+        var NUMBER = "1"
     }
 }
