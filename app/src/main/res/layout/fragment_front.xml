@@ -50,28 +50,6 @@
                 app:layout_constraintLeft_toLeftOf="@id/HealthButton"
                 >
 
-                <androidx.appcompat.widget.AppCompatImageButton
-                    android:id="@+id/threshold_minus"
-                    android:layout_width="50dp"
-                    android:layout_height="50dp"
-                    />
-
-                <TextView
-                    android:id="@+id/threshold_value"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginLeft="0dp"
-                    android:layout_marginRight="0dp"
-                    android:gravity="center"
-                    android:text="1"
-                    android:textColor="@color/bottom_sheet_text_color"
-                    android:textSize="25sp" />
-
-                <androidx.appcompat.widget.AppCompatImageButton
-                    android:id="@+id/threshold_plus"
-                    android:layout_width="50dp"
-                    android:layout_height="50dp"
-                    />
             </LinearLayout>
 
             <TextView

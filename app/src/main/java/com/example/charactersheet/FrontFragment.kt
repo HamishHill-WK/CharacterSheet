@@ -53,6 +53,7 @@ class FrontFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         recyclerView = binding.root
 
+
         resultText = binding.RollResult
 
         if(letterId != null) {  //when the application returns to this fragment check if a value has been assigned to letterid
@@ -65,21 +66,9 @@ class FrontFragment : Fragment() {
             Thread{connect()}.start()
         }
 
-        binding.HealthButton.setOnClickListener{
-            Log.d(TAG, "${binding.thresholdValue.text}")
-            NUMBER = binding.thresholdValue.text.toString()
-            val action = FrontFragmentDirections.actionFrontFragmentToCameraFragment(NUMBER)
+        binding.HealthButton.setOnClickListener {
+            val action = FrontFragmentDirections.actionFrontFragmentToCameraFragment()
             view.findNavController().navigate(action)
-        }
-
-        binding.thresholdPlus.setOnClickListener{   //increase the number of dice the user will roll
-            binding.thresholdValue.text = (binding.thresholdValue.text.toString().toInt() + 1).toString()
-        }
-
-        binding.thresholdMinus.setOnClickListener{
-            val x = binding.thresholdValue.text.toString().toInt()
-            if ( x > 1) //so the user cannot choose to roll less than 1 dice
-                binding.thresholdValue.text = (x - 1).toString()
         }
 
         binding.ConnectionCode.addTextChangedListener (object : TextWatcher {

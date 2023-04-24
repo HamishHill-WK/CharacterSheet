@@ -61,7 +61,7 @@ class PopUpFragment : Fragment() {
         }
 
         binding.NoButton.setOnClickListener{
-            val action = PopUpFragmentDirections.actionPopUpFragmentToCameraFragment("1")
+            val action = PopUpFragmentDirections.actionPopUpFragmentToCameraFragment()
             view.findNavController().navigate(action)
         }
     }

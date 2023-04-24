@@ -13,9 +13,6 @@
         <action
             android:id="@+id/action_cameraFragment_to_popUpFragment"
             app:destination="@id/popUpFragment" />
-        <argument
-            android:name="number"
-            app:argType="string" />
     </fragment>
     <fragment
         android:id="@+id/popUpFragment"
@@ -41,8 +38,6 @@
         <action
             android:id="@+id/action_frontFragment_to_cameraFragment"
             app:destination="@id/cameraFragment" >
-            <argument
-                android:name="number" />
         </action>
         <argument
             android:name="result"

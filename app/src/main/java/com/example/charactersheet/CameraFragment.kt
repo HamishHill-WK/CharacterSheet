@@ -27,7 +27,6 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.navigation.findNavController
-import androidx.navigation.fragment.navArgs
 import com.example.charactersheet.databinding.FragmentCameraBinding
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
@@ -69,7 +68,6 @@ class CameraFragment : Fragment() {
 
     private var noPerm = false
 
-    val args : CameraFragmentArgs by navArgs()
     override fun onDestroyView() {
         _fragmentCameraBinding = null
         super.onDestroyView()
@@ -79,16 +77,6 @@ class CameraFragment : Fragment() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        arguments?.let {
-            maxDice = it.getString(args.number).toString()
-            //numOfDice = maxDice.toInt()
-            Log.d(TAG, "$numOfDice $maxDice")
-        }
-
-        numResults = if(numOfDice in 1..4)        // top face algorithm has only been tested on up to 4 dice visible in one image
-            numOfDice                                   //might be able to detect more but this has not been tested
-        else                                               //if the num of dice is greater than 4 then the results will be collected in batches
-            4
     }
 
     override fun onCreateView(
@@ -133,6 +121,21 @@ class CameraFragment : Fragment() {
         }
         fragmentCameraBinding.imageCaptureButton.setOnClickListener { takePhoto() }
         fragmentCameraBinding.removeLastButton.setOnClickListener { removeLast() }
+
+        fragmentCameraBinding.thresholdPlus.setOnClickListener{   //increase the number of dice the user will roll
+            if(numOfDice < 10){
+                numOfDice +=1
+            fragmentCameraBinding.thresholdValue.text = numOfDice.toString()
+            }
+        }
+
+        fragmentCameraBinding.thresholdMinus.setOnClickListener{
+            if ( numOfDice > 1) {
+                numOfDice -= 1
+                fragmentCameraBinding.thresholdValue.text = numOfDice.toString()
+            }
+        }
+
         return view
     }
 
@@ -223,22 +226,24 @@ class CameraFragment : Fragment() {
                     val vectorAB = listOf(results[0].boundingBox.right.toInt() -results[0].boundingBox.left.toInt(), 0)
                     val vectorAC = listOf(0, results[0].boundingBox.bottom.toInt() -results[0].boundingBox.top.toInt())
                     val vectorAM =  listOf(c - results[0].boundingBox.left.toInt(), y - results[0].boundingBox.top.toInt())
-                        //if AM.AB < 0
-                        if((vectorAM[0] * vectorAB[0] + vectorAM[1] * vectorAB[1]) < 0 ) {  //outside bounding box
-                            img.setPixel(c, y, Color.BLACK) //set to black
-                            continue //go to next pixel
-                        }
-                        //or AM.AB > AB.AB
-                        if(vectorAM[0] * vectorAB[0] + vectorAM[1] * vectorAB[1] > vectorAB[0] * vectorAB[0] + vectorAB[1] * vectorAB[1] ) {
-                            img.setPixel(c, y, Color.BLACK)
-                            continue
-                        }//or AM.AC < 0
-                        if(vectorAM[0] * vectorAC[0] + vectorAM[1] * vectorAC[1] <0 ) {
-                            img.setPixel(c, y, Color.BLACK)
-                            continue
-                        }// or AM.AC > AC.AC
-                        if(vectorAM[0] * vectorAC[0] + vectorAM[1] * vectorAC[1] > vectorAC[0] * vectorAC[0] + vectorAC[1] * vectorAC[1])
-                                img.setPixel(c, y, Color.BLACK) //pixel is outside detected object bounding box, set colour to black for text recognition algorithm
+
+                    //if AM.AB > AB.AB
+                    if(vectorAM[0] * vectorAB[0] + vectorAM[1] * vectorAB[1] > vectorAB[0] * vectorAB[0] + vectorAB[1] * vectorAB[1] ) {
+                        img.setPixel(c, y, Color.BLACK)
+                        continue
+                    }// or AM.AC > AC.AC
+                    if(vectorAM[0] * vectorAC[0] + vectorAM[1] * vectorAC[1] > vectorAC[0] * vectorAC[0] + vectorAC[1] * vectorAC[1]) {
+                        img.setPixel(c, y, Color.BLACK) //pixel is outside detected object bounding box, set colour to black for text recognition algorithm
+                        continue
+                    }
+                    //if AM.AB < 0
+                    if((vectorAM[0] * vectorAB[0] + vectorAM[1] * vectorAB[1]) < 0 ) {  //outside bounding box
+                        img.setPixel(c, y, Color.BLACK) //set to black
+                        continue //go to next pixel
+                    }
+                    //or AM.AC < 0
+                    if(vectorAM[0] * vectorAC[0] + vectorAM[1] * vectorAC[1] <0 )
+                        img.setPixel(c, y, Color.BLACK)
                 }
 
                 if(list.size > 1)//if there is more than one result in the image
