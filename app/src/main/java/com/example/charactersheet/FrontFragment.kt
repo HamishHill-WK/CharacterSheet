@@ -38,6 +38,7 @@ class FrontFragment : Fragment() {
     private lateinit var ipText: TextView
     private lateinit var portText: TextView
 
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -55,7 +56,6 @@ class FrontFragment : Fragment() {
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-
         recyclerView = binding.root
         ipText = binding.ConnectionCode
         portText = binding.ConnectionPort
@@ -81,7 +81,7 @@ class FrontFragment : Fragment() {
         if(letterId != null) {  //when the application returns to this fragment check if a value has been assigned to letterid
             resultText.text = letterId!!
             if (letterId.toString() != "null")//if the result is a number between 1 and 20
-            Thread{connect(letterId.toString())}.start()    //send number to server
+                Thread{connect(letterId.toString())}.start()    //send number to server
         }
 
         binding.ConnectButton.setOnClickListener{

@@ -61,17 +61,11 @@ class CameraFragment : Fragment() {
 
     private var noPerm = false
 
-    private var clickedCapture = false
-
     override fun onDestroyView() {
         _fragmentCameraBinding = null
         super.onDestroyView()
         // Shut down our background executor
         cameraExecutor.shutdown()
-    }
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
     }
 
     override fun onCreateView(
@@ -188,34 +182,66 @@ class CameraFragment : Fragment() {
     }
 
     private fun isPixelIn(img: Bitmap, results: List<Detection>): Bitmap {
-        for (y  in 0 until img.height)  //loop from 0 to img.height-1
-            for (c  in 0 until img.width){//loop from 0 to img.width-1
-                if(results.size == 1){//if theres only one bounding box to check against
-                    val vectorAB = listOf(results[0].boundingBox.right.toInt() -results[0].boundingBox.left.toInt(), 0)
-                    val vectorAC = listOf(0, results[0].boundingBox.bottom.toInt() -results[0].boundingBox.top.toInt())
-                    val vectorAM =  listOf(c - results[0].boundingBox.left.toInt(), y - results[0].boundingBox.top.toInt())
+        for (y in 0 until img.height)  //loop from 0 to img.height-1
+            for (c in 0 until img.width) {//loop from 0 to img.width-1
+                if (results.size == 1) {//if theres only one bounding box to check against
+                    val vectorAB = listOf(
+                        results[0].boundingBox.right.toInt() - results[0].boundingBox.left.toInt(),
+                        0
+                    )
+                    val vectorAC = listOf(
+                        0,
+                        results[0].boundingBox.bottom.toInt() - results[0].boundingBox.top.toInt()
+                    )
+                    val vectorAM = listOf(
+                        c - results[0].boundingBox.left.toInt(),
+                        y - results[0].boundingBox.top.toInt()
+                    )
                     //if AM.AB > AB.AB
-                    if(vectorAM[0] * vectorAB[0] + vectorAM[1] * vectorAB[1] > vectorAB[0] * vectorAB[0] + vectorAB[1] * vectorAB[1] ) {
+                    if (vectorAM[0] * vectorAB[0] + vectorAM[1] * vectorAB[1] > vectorAB[0] * vectorAB[0] + vectorAB[1] * vectorAB[1]) {
                         img.setPixel(c, y, Color.BLACK)
                         continue
                     }// or AM.AC > AC.AC
-                    if(vectorAM[0] * vectorAC[0] + vectorAM[1] * vectorAC[1] > vectorAC[0] * vectorAC[0] + vectorAC[1] * vectorAC[1]) {
-                        img.setPixel(c, y, Color.BLACK) //pixel is outside detected object bounding box, set colour to black for text recognition algorithm
+                    if (vectorAM[0] * vectorAC[0] + vectorAM[1] * vectorAC[1] > vectorAC[0] * vectorAC[0] + vectorAC[1] * vectorAC[1]) {
+                        img.setPixel(
+                            c,
+                            y,
+                            Color.BLACK
+                        ) //pixel is outside detected object bounding box, set colour to black for text recognition algorithm
                         continue
                     }
                     //if AM.AB < 0
-                    if((vectorAM[0] * vectorAB[0] + vectorAM[1] * vectorAB[1]) < 0 ) {  //outside bounding box
+                    if ((vectorAM[0] * vectorAB[0] + vectorAM[1] * vectorAB[1]) < 0) {  //outside bounding box
                         img.setPixel(c, y, Color.BLACK) //set to black
                         continue //go to next pixel
                     }
                     //or AM.AC < 0
-                    if(vectorAM[0] * vectorAC[0] + vectorAM[1] * vectorAC[1] <0 )
+                    if (vectorAM[0] * vectorAC[0] + vectorAM[1] * vectorAC[1] < 0)
                         img.setPixel(c, y, Color.BLACK)
                 }
             }
 
-        //saveMediaToStorage(img)
-        return img
+        var cropLeft = (results[0].boundingBox.left - 500).toInt()
+        var cropTop = (results[0].boundingBox.top - 500).toInt()
+        var cropH = (results[0].boundingBox.height() + 1000).toInt()
+        var cropW = (results[0].boundingBox.width() + 1000).toInt()
+        if (cropLeft < 0)
+            cropLeft = 1
+
+        if (cropTop < 0)
+            cropTop = 1
+
+        if(cropH + cropTop > img.height)
+            cropH = img.height - cropTop
+
+        if(cropW + cropLeft > img.width)
+            cropW = img.width - cropLeft
+
+        val img2 = Bitmap.createBitmap(
+            img, cropLeft, cropTop,
+            cropW, cropH
+        )
+        return img2
     }
 
     private var textChanged = false;
@@ -259,8 +285,9 @@ class CameraFragment : Fragment() {
         )
         view?.findNavController()?.navigate(action)
     }
+
     // Initialize CameraX, and prepare to bind the camera use cases
-    private fun startCamera() {
+    private fun startCamera(){
         val cameraProviderFuture = ProcessCameraProvider.getInstance(requireContext())
         cameraProviderFuture.addListener({
             // Used to bind the lifecycle of cameras to the lifecycle owner
@@ -283,12 +310,13 @@ class CameraFragment : Fragment() {
                 // Bind use cases to camera
                 val cam = cameraProvider.bindToLifecycle(
                     this, cameraSelector, preview, imageCapture)
-
+                
             } catch(exc: Exception) {
                 Log.e(TAG, "Use case binding failed", exc)
             }
 
         }, ContextCompat.getMainExecutor(requireContext()))
+
     }
 
     private fun allPermissionsGranted() = REQUIRED_PERMISSIONS.all {
@@ -313,19 +341,16 @@ class CameraFragment : Fragment() {
             val y = textRecog(img)
             y.addOnSuccessListener {
                 text1 = y.result.text
-                Log.d(TAG, "here  $text1")
                 if (text1 != "") {
                     if (resultsString != "" )
                         setRes("$resultsString,$text1")
 
                     else if (resultsString == "") {
-                        setRes( text1)
+                        setRes(text1)
                     }
-                    if (x == 3){
-                        clickedCapture = false
-                    if( textChanged)
+                    if (x == 3 && textChanged)
                         textChanged = false
-                    }
+
                     fragmentCameraBinding.resultsTextCam.text = resultsString
                 } else if (text1 == "") {
                     Toast.makeText(
@@ -335,10 +360,8 @@ class CameraFragment : Fragment() {
                     ).show()
                     Log.d(TAG, "no text in image ")
                 }
-                if (x == 3){
+                if (x == 3)
                     fragmentCameraBinding.imageCaptureButton.visibility = View.VISIBLE
-                    clickedCapture = false
-                }
             }
         }
     }
