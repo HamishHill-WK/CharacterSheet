@@ -419,7 +419,9 @@ class CameraFragment : Fragment() {
                     if (!textChanged){
 
                         text1 = classifyObjects(image, rot)
-                        if(text1 in (1..6).toString()) {
+                        Log.d(TAG, "$text1")
+                        if(text1.toInt() in 1..6) {
+                            Log.d(TAG,"here")
                             if (resultsString != "")
                                 setRes("$resultsString,$text1")
                             else if (resultsString == "")
@@ -444,7 +446,7 @@ class CameraFragment : Fragment() {
 
         val options = ImageClassifier.ImageClassifierOptions.builder()
             .setBaseOptions(BaseOptions.builder().useGpu().build())//.setScoreThreshold(0.65F)
-            .setMaxResults(1)
+            .setMaxResults(5)
             .build()
 
         val modelFile= "D6E20_NoAug_model2_89_fp16.tflite"
@@ -466,7 +468,7 @@ class CameraFragment : Fragment() {
             Log.d(TAG,"results: $results1")
 
         }
-        return results1[0].categories.toString()
+        return results1[0].categories[0].label.toString()
     }
 
     companion object {
