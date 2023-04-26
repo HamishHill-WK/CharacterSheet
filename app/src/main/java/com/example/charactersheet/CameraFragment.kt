@@ -36,8 +36,6 @@ import org.tensorflow.lite.support.image.ImageProcessor
 import org.tensorflow.lite.support.image.TensorImage
 import org.tensorflow.lite.support.image.ops.Rot90Op
 import org.tensorflow.lite.task.core.BaseOptions
-import org.tensorflow.lite.task.vision.classifier.Classifications
-import org.tensorflow.lite.task.vision.classifier.ImageClassifier
 import org.tensorflow.lite.task.vision.detector.Detection
 import org.tensorflow.lite.task.vision.detector.ObjectDetector
 import org.tensorflow.lite.task.vision.detector.ObjectDetector.ObjectDetectorOptions
@@ -68,9 +66,20 @@ class CameraFragment : Fragment() {
 
     private var noPerm = false
 
+    override fun onResume() {
+        super.onResume()
+        Log.d(TAG, "resume called")
+    }
+
+    override fun onStop() {
+        super.onStop()
+        Log.d(TAG, "stop called")
+    }
+
     override fun onDestroyView() {
         _fragmentCameraBinding = null
         super.onDestroyView()
+        Log.d(TAG, "destroy called")
         // Shut down our background executor
         cameraExecutor.shutdown()
     }
@@ -123,9 +132,21 @@ class CameraFragment : Fragment() {
         return view
     }
 
+    private lateinit var objectDetector : ObjectDetector
+    private lateinit var imageProcessor : ImageProcessor
+    private val imageRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         recyclerView = fragmentCameraBinding.root
+
+        val options = ObjectDetectorOptions.builder()
+            .setBaseOptions(BaseOptions.builder().useGpu().build()).setScoreThreshold(0.80f)
+            .setMaxResults(1)
+            .build()
+        objectDetector = ObjectDetector.createFromFileAndOptions(
+            context, "android(6).tflite", options
+        )
 
     }
 
@@ -188,7 +209,6 @@ class CameraFragment : Fragment() {
     }
 
     private fun isPixelIn(img: Bitmap, results: List<Detection>): Bitmap {
-
         var cropLeft = (results[0].boundingBox.left - 500).toInt()
         var cropTop = (results[0].boundingBox.top - 500).toInt()
         var cropH = (results[0].boundingBox.height() + 1000).toInt()
@@ -253,15 +273,8 @@ class CameraFragment : Fragment() {
         return img2
     }
 
-    private var textChanged = false;
+    private var textChanged = false
     private fun DetectObjs(image: Bitmap, rot: Int) {
-        val options = ObjectDetectorOptions.builder()
-            .setBaseOptions(BaseOptions.builder().useGpu().build()).setScoreThreshold(0.80f)
-            .setMaxResults(1)
-            .build()
-        val objectDetector = ObjectDetector.createFromFileAndOptions(
-            context, "android(6).tflite", options
-        )
 
         val imageProcessor =
             ImageProcessor.Builder()
@@ -269,22 +282,57 @@ class CameraFragment : Fragment() {
                 .build()
         val tensorImage = imageProcessor.process(TensorImage.fromBitmap(image))
 
+        Log.d(TAG, " here ")
+
         val results: List<Detection> = objectDetector.detect(tensorImage)
         if(results.isEmpty()){
             Toast.makeText(requireContext(), "no Dice detected, please try again", Toast.LENGTH_SHORT).show()
             fragmentCameraBinding.imageCaptureButton.visibility = View.VISIBLE
             return
         }
-            val image1: Bitmap = isPixelIn(image.copy(Bitmap.Config.ARGB_8888, true), results)  //all pixels outside the detected object's bounding box have their colour set to black
-            textRecog(image1, rot)//edited bitmap is passed to text recognition algorithm
+            val task = textRecog(InputImage.fromBitmap(image, rot))
+            task.addOnSuccessListener {
+
+            mlkitResults = task.result
+                Log.d(TAG, "task started ${mlkitResults.textBlocks.size}")
+                for ((d,x) in mlkitResults.textBlocks.withIndex()){
+                    if(d >= 100)
+                        break
+
+                    if(x.boundingBox?.top!! < results[0].boundingBox.top )
+                            continue
+                    if(x.boundingBox?.left!! < results[0].boundingBox.left )
+                            continue
+                    if(x.boundingBox?.right!! > results[0].boundingBox.right )
+                            continue
+                    if(x.boundingBox?.bottom!! > results[0].boundingBox.bottom )
+                            continue
+                    else {
+                        Log.d(TAG, "${x.text} inside box ")
+                        setRes(x.text)
+                        fragmentCameraBinding.imageCaptureButton.visibility = View.VISIBLE
+                    }
+                }
+
+            if(!textChanged) {
+                Log.d(TAG, "no text inside box ")
+                val image1: Bitmap = isPixelIn(
+                    image.copy(Bitmap.Config.ARGB_8888, true),
+                    results
+                )  //all pixels outside the detected object's bounding box have their colour set to black
+                textRecog(image1, rot)//edited bitmap is passed to text recognition algorithm
+                }
+            }
     }
 
+    private lateinit var mlkitResults : Text
     private fun getRes(): String { return resultsString }
     private fun setRes(str: String) {
         if(!textChanged){
             textChanged = true
             resultsString= str
             fragmentCameraBinding.resultsTextCam.text = getRes()
+            fragmentCameraBinding.imageCaptureButton.visibility = View.VISIBLE
         }
     }
 
@@ -384,91 +432,66 @@ class CameraFragment : Fragment() {
     }
 
     private fun textRecog(image: InputImage): Task<Text> {
-        Log.d(TAG, "starting thread")
-        val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-        return recognizer.process(image)
+        return imageRecognizer.process(image)
+    }
+
+    private  fun letterFilter(text: String): String { //function to filter out non numbers
+        val chars = text.toCharArray()
+        var returnString = ""
+        val letters = 0
+        for (c in chars) {
+            if(!Character.isLetter(c)) { //if character is not a letter add it to the return string
+                returnString+=c.toString()
+            }
+        }
+        return returnString;
+    }
+
+    private  fun containsLetters(text: String): Boolean { //function to filter out non numbers
+        val chars = text.toCharArray()
+        var returnString = ""
+        val letters = 0
+        for (c in chars) {
+            if(Character.isLetter(c)) { //if string cotains a non-number character return true
+               return true
+            }
+        }
+        return false;
     }
 
     private fun textRecog (image: Bitmap, rot: Int ) {
-        var text1 = ""
-        for( x in 0 until 4){
-            val img = InputImage.fromBitmap(image, x * rot)
-            val y = textRecog(img)
-            y.addOnSuccessListener {
-                Log.d(TAG, "$x thread finished")
-                text1 = y.result.text
-                if (text1 != "") {
-                    if (text1 == "A") //added for common case where `4` is often detected as capital `A`
-                        text1 = "4"
+    var text1 = ""
+        val img = InputImage.fromBitmap(image, rot)
+        val y = textRecog(img)
+        y.addOnSuccessListener {
+            text1 = y.result.text
+            if (text1 != "") {
+                if (text1 == "A") //added for common case where `4` is often detected as capital `A`
+                    text1 = "4"
 
-                    if(text1 in (1..20).toString()){
-                        if (resultsString != "" )
-                            setRes("$resultsString,$text1")
+                if(containsLetters(text1))
+                    text1 = letterFilter(text1)
 
-                        else if (resultsString == "") {
-                            setRes(text1)
-                        }
-                    }
-                }
-                if (x == 3){
-                    fragmentCameraBinding.imageCaptureButton.visibility = View.VISIBLE
+                if(text1.toInt() in 1..20){
+                    if (resultsString != "" )
+                        setRes("$resultsString,$text1")
 
-                    if (textChanged)
-                        textChanged = false
-
-                    if (!textChanged){
-
-                        text1 = classifyObjects(image, rot)
-                        Log.d(TAG, "$text1")
-                        if(text1.toInt() in 1..6) {
-                            Log.d(TAG,"here")
-                            if (resultsString != "")
-                                setRes("$resultsString,$text1")
-                            else if (resultsString == "")
-                                setRes(text1)
-                        }
-                        else
-                            Toast.makeText(requireContext(), "No text found, please try again", Toast.LENGTH_SHORT).show()
+                    else if (resultsString == "") {
+                        setRes(text1)
                     }
                 }
             }
+                if (!textChanged){
+
+                    //text1 = classifyObjects(image, rot)
+                    Log.d(TAG, "$text1")
+
+                        Toast.makeText(requireContext(), "No text found, please try again", Toast.LENGTH_SHORT).show()
+
+            }
+            textChanged = false
+            fragmentCameraBinding.imageCaptureButton.visibility = View.VISIBLE
         }
-    }
-
-    private fun classifyObjects (box: Bitmap, rot: Int): String {
-
-        val imageProcessor =
-            ImageProcessor.Builder()
-                .add(Rot90Op(-rot / 90))
-                .build()
-
-        val tensorImage = imageProcessor.process(TensorImage.fromBitmap(box))
-
-        val options = ImageClassifier.ImageClassifierOptions.builder()
-            .setBaseOptions(BaseOptions.builder().useGpu().build())//.setScoreThreshold(0.65F)
-            .setMaxResults(5)
-            .build()
-
-        val modelFile= "D6E20_NoAug_model2_89_fp16.tflite"
-        val modelFile1= "E10_model10_fp16.tflite"
-
-        val imageClassifier = ImageClassifier.createFromFileAndOptions(
-            context, modelFile, options
-        )
-
-  val imageClassifier1 = ImageClassifier.createFromFileAndOptions(
-            context, modelFile1, options
-        )
-
-        val results: List<Classifications> = imageClassifier.classify(tensorImage)
-        val results1: List<Classifications> = imageClassifier1.classify(tensorImage)
-
-        if(results!=null) {
-            Log.d(TAG,"results: $results")
-            Log.d(TAG,"results: $results1")
-
-        }
-        return results1[0].categories[0].label.toString()
     }
 
     companion object {
