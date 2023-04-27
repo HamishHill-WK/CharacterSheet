@@ -5,6 +5,7 @@ import android.content.ContentValues
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Color
+import android.graphics.Matrix
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -122,9 +123,7 @@ class CameraFragment : Fragment() {
         }
         fragmentCameraBinding.imageCaptureButton.setOnClickListener {
             fragmentCameraBinding.imageCaptureButton.visibility = View.INVISIBLE
-
             takePhoto()
-
         }
         fragmentCameraBinding.removeLastButton.setOnClickListener { removeLast() }
         fragmentCameraBinding.proceedButton.setOnClickListener{ proceed() }
@@ -133,8 +132,7 @@ class CameraFragment : Fragment() {
     }
 
     private lateinit var objectDetector : ObjectDetector
-    private lateinit var imageProcessor : ImageProcessor
-    private val imageRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+    private val textRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
@@ -208,11 +206,11 @@ class CameraFragment : Fragment() {
         )
     }
 
-    private fun isPixelIn(img: Bitmap, results: List<Detection>): Bitmap {
-        var cropLeft = (results[0].boundingBox.left - 500).toInt()
-        var cropTop = (results[0].boundingBox.top - 500).toInt()
-        var cropH = (results[0].boundingBox.height() + 1000).toInt()
-        var cropW = (results[0].boundingBox.width() + 1000).toInt()
+    private fun isPixelIn(img: Bitmap, results: List<Detection>, cropBuffer: Float): Bitmap {
+        var cropLeft = (results[0].boundingBox.left - cropBuffer).toInt()
+        var cropTop = (results[0].boundingBox.top - cropBuffer).toInt()
+        var cropH = (results[0].boundingBox.height() + cropBuffer*2).toInt()
+        var cropW = (results[0].boundingBox.width() + cropBuffer*2).toInt()
         if (cropLeft < 0)
             cropLeft = 1
 
@@ -290,28 +288,33 @@ class CameraFragment : Fragment() {
             fragmentCameraBinding.imageCaptureButton.visibility = View.VISIBLE
             return
         }
-            val task = textRecog(InputImage.fromBitmap(image, rot))
+            val task = textRecognitionTask(InputImage.fromBitmap(image, rot))
             task.addOnSuccessListener {
-
             mlkitResults = task.result
                 Log.d(TAG, "task started ${mlkitResults.textBlocks.size}")
-                for ((d,x) in mlkitResults.textBlocks.withIndex()){
-                    if(d >= 100)
-                        break
-
-                    if(x.boundingBox?.top!! < results[0].boundingBox.top )
-                            continue
-                    if(x.boundingBox?.left!! < results[0].boundingBox.left )
-                            continue
-                    if(x.boundingBox?.right!! > results[0].boundingBox.right )
-                            continue
-                    if(x.boundingBox?.bottom!! > results[0].boundingBox.bottom )
-                            continue
-                    else {
-                        Log.d(TAG, "${x.text} inside box ")
-                        setRes(x.text)
-                        fragmentCameraBinding.imageCaptureButton.visibility = View.VISIBLE
+                if (mlkitResults.textBlocks.size < 100)
+                for (x in mlkitResults.textBlocks){
+                    var out =false
+                    if(x.boundingBox?.top!! < results[0].boundingBox.top ){
+                            out = true
+                        }
+                    if(x.boundingBox?.left!! < results[0].boundingBox.left ){
+                        out = true
                     }
+                    if(x.boundingBox?.right!! > results[0].boundingBox.right ){
+                        out = true
+                    }
+                    if(x.boundingBox?.bottom!! > results[0].boundingBox.bottom )
+                    {
+                        out = true
+                    }
+                    if(!out){
+                    Log.d(TAG, "${x.text} inside box $results ")
+                    setRes(x.text)
+                        fragmentCameraBinding.imageCaptureButton.visibility = View.VISIBLE
+                        return@addOnSuccessListener
+                    }
+                    //fragmentCameraBinding.imageCaptureButton.visibility = View.VISIBLE
                 }
 
             if(!textChanged) {
@@ -319,10 +322,29 @@ class CameraFragment : Fragment() {
                 val image1: Bitmap = isPixelIn(
                     image.copy(Bitmap.Config.ARGB_8888, true),
                     results
-                )  //all pixels outside the detected object's bounding box have their colour set to black
-                textRecog(image1, rot)//edited bitmap is passed to text recognition algorithm
+                ,100F)  //all pixels outside the detected object's bounding box have their colour set to black
+
+                bitmaps.add(image1)
+                for(n in 1.. 9) {
+                    Log.d(TAG, "bitmap $n")
+                    bitmaps.add(RotateBitmap(image1, (n * 40).toFloat()))
+                }
+                for (i in bitmaps) {
+
+                    saveMediaToStorage(i)
+                    textRecog(i, rot)//edited bitmap is passed to text recognition algorithm
+                    }
+                textChanged = false
                 }
             }
+    }
+
+    private var bitmaps: MutableList<Bitmap> = mutableListOf()
+
+    fun RotateBitmap(source: Bitmap, angle: Float): Bitmap {
+        val matrix = Matrix()
+        matrix.postRotate(angle)
+        return Bitmap.createBitmap(source, 0, 0, source.width, source.height, matrix, true)
     }
 
     private lateinit var mlkitResults : Text
@@ -366,7 +388,7 @@ class CameraFragment : Fragment() {
                 cameraProvider.unbindAll()
 
                 // Bind use cases to camera
-                val cam = cameraProvider.bindToLifecycle(
+                cameraProvider.bindToLifecycle(
                     this, cameraSelector, preview, imageCapture)
 
             } catch(exc: Exception) {
@@ -431,66 +453,67 @@ class CameraFragment : Fragment() {
         fragmentCameraBinding.resultsTextCam.text  =resultsString
     }
 
-    private fun textRecog(image: InputImage): Task<Text> {
-        return imageRecognizer.process(image)
+    private fun textRecognitionTask(image: InputImage): Task<Text> {
+        return textRecognizer.process(image)
     }
 
     private  fun letterFilter(text: String): String { //function to filter out non numbers
+        Log.d(TAG, "start filter")
         val chars = text.toCharArray()
         var returnString = ""
-        val letters = 0
         for (c in chars) {
-            if(!Character.isLetter(c)) { //if character is not a letter add it to the return string
+            if(Character.isDigit(c) ) { //if character is a digit add it to the return string
                 returnString+=c.toString()
             }
         }
-        return returnString;
+        Log.d(TAG, "end filter")
+        return returnString
     }
 
-    private  fun containsLetters(text: String): Boolean { //function to filter out non numbers
-        val chars = text.toCharArray()
-        var returnString = ""
-        val letters = 0
-        for (c in chars) {
-            if(Character.isLetter(c)) { //if string cotains a non-number character return true
-               return true
-            }
-        }
-        return false;
-    }
+    private var resultsText: MutableList<String> = mutableListOf()
 
     private fun textRecog (image: Bitmap, rot: Int ) {
-    var text1 = ""
+    var text1 : String
         val img = InputImage.fromBitmap(image, rot)
-        val y = textRecog(img)
+        val y = textRecognitionTask(img)
         y.addOnSuccessListener {
+            Log.d(TAG, "success")
             text1 = y.result.text
             if (text1 != "") {
                 if (text1 == "A") //added for common case where `4` is often detected as capital `A`
                     text1 = "4"
 
-                if(containsLetters(text1))
-                    text1 = letterFilter(text1)
+                if(text1.length > 1)
+                    text1 = letterFilter(text1) //removes any letter characters from string
+
+                else if (text1.length == 1)
+                    if (Character.isDigit(text1.toCharArray()[0])){
 
                 if(text1.toInt() in 1..20){
+                    resultsText.add(text1)
+                    Log.d(TAG, " res $text1")
                     if (resultsString != "" )
                         setRes("$resultsString,$text1")
-
-                    else if (resultsString == "") {
+                    else
                         setRes(text1)
                     }
                 }
             }
-                if (!textChanged){
+            resultsText.add(" ")
 
-                    //text1 = classifyObjects(image, rot)
-                    Log.d(TAG, "$text1")
 
-                        Toast.makeText(requireContext(), "No text found, please try again", Toast.LENGTH_SHORT).show()
+        if(resultsText.size == 10) {
+            if (!textChanged)
+                Toast.makeText(
+                    requireContext(),
+                    "No text found, please try again",
+                    Toast.LENGTH_SHORT
+                ).show()
 
-            }
             textChanged = false
             fragmentCameraBinding.imageCaptureButton.visibility = View.VISIBLE
+            resultsText.clear()
+            }
         }
     }
 
