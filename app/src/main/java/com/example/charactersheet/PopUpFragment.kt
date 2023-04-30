@@ -3,7 +3,6 @@ package com.example.charactersheet
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -52,12 +51,9 @@ class PopUpFragment : Fragment() {
 
         if(letterId != null) {
             resultText.text = letterId
-            Log.d("fragment", letterId)
         }
 
         binding.YesButton.setOnClickListener{
-            Log.d(TAG, letterId)
-
             val action = PopUpFragmentDirections.actionPopUpFragmentToFrontFragment(letterId)
             view.findNavController().navigate(action)
         }

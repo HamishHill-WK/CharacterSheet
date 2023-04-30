@@ -85,6 +85,8 @@ class FrontFragment : Fragment() {
         }
 
         binding.ConnectButton.setOnClickListener{
+            saveFile("ipnum", ipNum)
+            saveFile("port", port)
             Thread{connect()}.start()
         }
 

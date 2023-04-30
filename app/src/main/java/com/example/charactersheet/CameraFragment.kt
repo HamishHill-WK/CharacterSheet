@@ -18,20 +18,15 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.camera.core.CameraSelector
-import androidx.camera.core.ImageCapture
-import androidx.camera.core.ImageCaptureException
-import androidx.camera.core.Preview
-import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.navigation.findNavController
 import com.example.charactersheet.databinding.FragmentCameraBinding
-import com.google.android.gms.tasks.Task
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.Text
 import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.TextRecognizer
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import org.tensorflow.lite.support.image.ImageProcessor
 import org.tensorflow.lite.support.image.TensorImage
@@ -39,49 +34,32 @@ import org.tensorflow.lite.support.image.ops.Rot90Op
 import org.tensorflow.lite.task.core.BaseOptions
 import org.tensorflow.lite.task.vision.detector.Detection
 import org.tensorflow.lite.task.vision.detector.ObjectDetector
-import org.tensorflow.lite.task.vision.detector.ObjectDetector.ObjectDetectorOptions
 import java.io.File
 import java.io.FileOutputStream
-import java.io.IOException
 import java.io.OutputStream
-import java.text.SimpleDateFormat
-import java.util.*
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
 
 //this fragment handles camera and image analysis operations -hh
 class CameraFragment : Fragment() {
-
-    private var imageCapture: ImageCapture? = null
-
     private lateinit var cameraExecutor: ExecutorService
-
     private var _fragmentCameraBinding: FragmentCameraBinding? = null
     private val fragmentCameraBinding
         get() = _fragmentCameraBinding!!
-
     private lateinit var recyclerView: FrameLayout
 
+    private lateinit var cameraHandler: CameraHandler
+    lateinit var objectDetector: ObjectDetector
+    lateinit var textRecognizer: TextRecognizer
+    lateinit var bitmapEditor: BitmapProcessor
+
     private var resultsString = ""
-
     private var noPerm = false
-
-    override fun onResume() {
-        super.onResume()
-        Log.d(TAG, "resume called")
-    }
-
-    override fun onStop() {
-        super.onStop()
-        Log.d(TAG, "stop called")
-    }
 
     override fun onDestroyView() {
         _fragmentCameraBinding = null
         super.onDestroyView()
-        Log.d(TAG, "destroy called")
-        // Shut down our background executor
         cameraExecutor.shutdown()
     }
 
@@ -94,11 +72,12 @@ class CameraFragment : Fragment() {
         val view = fragmentCameraBinding.root
 
         cameraExecutor = Executors.newSingleThreadExecutor()
+        cameraHandler = CameraHandler(requireContext(), viewLifecycleOwner)
 
         val cameraPermissionResultReceiver = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
             noPerm = if (it) {
                 // permission granted
-                startCamera()
+                cameraHandler.startCamera(fragmentCameraBinding.viewFinder)
                 false
             } else {
                 true
@@ -113,7 +92,7 @@ class CameraFragment : Fragment() {
             cameraPermissionResultReceiver.launch(Manifest.permission.CAMERA)
 
         if (allPermissionsGranted()) {
-            startCamera()
+            cameraHandler.startCamera(fragmentCameraBinding.viewFinder)
         } else {
             this.activity?.let {
                 ActivityCompat.requestPermissions(
@@ -121,8 +100,10 @@ class CameraFragment : Fragment() {
                 )
             }
         }
+
         fragmentCameraBinding.imageCaptureButton.setOnClickListener {
             fragmentCameraBinding.imageCaptureButton.visibility = View.INVISIBLE
+            textChanged = false
             takePhoto()
         }
         fragmentCameraBinding.removeLastButton.setOnClickListener { removeLast() }
@@ -131,86 +112,54 @@ class CameraFragment : Fragment() {
         return view
     }
 
-    private lateinit var objectDetector : ObjectDetector
-    private val textRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         recyclerView = fragmentCameraBinding.root
 
-        val options = ObjectDetectorOptions.builder()
-            .setBaseOptions(BaseOptions.builder().useGpu().build()).setScoreThreshold(0.80f)
+        val options = ObjectDetector.ObjectDetectorOptions.builder()
+            .setBaseOptions(BaseOptions.builder().useGpu().build())
+            .setScoreThreshold(0.80f)
             .setMaxResults(1)
             .build()
         objectDetector = ObjectDetector.createFromFileAndOptions(
             context, "android(6).tflite", options
         )
 
+        textRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+
+        bitmapEditor = BitmapProcessor()
+        //handler = MLhandler(requireContext())
+        //handler.initMLKit()
+
     }
 
     private fun takePhoto() {
-        // Get a stable reference of the modifiable image capture use case
-        //fragmentCameraBinding.imageCaptureButton.isClickable = false
+        Log.d(TAG, "options ")
 
-        val imageCapture = imageCapture ?: return
-
-        // Create time stamped name and MediaStore entry.
-        val name = SimpleDateFormat(FILENAME_FORMAT, Locale.US)
-            .format(System.currentTimeMillis())
-        val contentValues = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, name)
-            put(MediaStore.MediaColumns.MIME_TYPE, "image/png")
-            if(Build.VERSION.SDK_INT > Build.VERSION_CODES.P) {
-                put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/CameraX-Image")
-            }
+        cameraHandler.takePhoto { image, rot->
+            saveMediaToStorage(image)
+            DetectObjs(image, rot)
         }
-
-        // Create output options object which contains file + metadata
-        val outputOptions = ImageCapture.OutputFileOptions
-            .Builder(requireContext().contentResolver,
-                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                contentValues)
-            .build()
-
-        // Set up image capture listener, which is triggered after photo has
-        // been taken
-        imageCapture.takePicture(
-            outputOptions,
-            ContextCompat.getMainExecutor(requireContext()),
-            object : ImageCapture.OnImageSavedCallback {
-                override fun onError(exc: ImageCaptureException) {
-                    Log.e(TAG, "Photo capture failed: ${exc.message}", exc)
-                }
-
-                override fun
-                        onImageSaved(output: ImageCapture.OutputFileResults){
-
-                    val msg = "Photo capture succeeded" // : ${output.savedUri}"
-                    Toast.makeText(requireContext(), msg, Toast.LENGTH_SHORT).show()
-
-                    val image: InputImage
-                    try {
-                        image = InputImage.fromFilePath(requireContext(), output.savedUri!!)
-                        val bitmap =
-                            MediaStore.Images.Media.getBitmap(requireContext().contentResolver, output.savedUri!!)//creates bitmap from image saved in gallery
-                        val imageRotation = image.rotationDegrees
-
-                        DetectObjs(bitmap, imageRotation)
-                        //textRecog(image)
-                        requireContext().contentResolver.delete(output.savedUri!!, null, null)//remove save image from gallery
-                    } catch (e: IOException) {
-                        e.printStackTrace()
-                    }
-                }
-            }
-        )
     }
 
-    private fun isPixelIn(img: Bitmap, results: List<Detection>, cropBuffer: Float): Bitmap {
-        var cropLeft = (results[0].boundingBox.left - cropBuffer).toInt()
-        var cropTop = (results[0].boundingBox.top - cropBuffer).toInt()
-        var cropH = (results[0].boundingBox.height() + cropBuffer*2).toInt()
-        var cropW = (results[0].boundingBox.width() + cropBuffer*2).toInt()
+    private fun isPixelIn(img: Bitmap, faces: List<Detection>, cropBuffer: Float): Bitmap {
+
+
+        Log.d(TAG, "here ${faces[0].boundingBox.top + 100}, ${faces[0].boundingBox.left + 100}" +
+                "${faces[0].boundingBox.right + 200} ${faces[0].boundingBox.bottom +200} ${faces.size}")
+
+        var cropLeft = faces[0].boundingBox.left.toInt() -100
+        var cropTop = faces[0].boundingBox.top.toInt() -100
+        var cropH = faces[0].boundingBox.height().toInt() +200
+        var cropW = faces[0].boundingBox.width().toInt() +200
+
+        Log.d(TAG, "$cropH, $cropW, $cropLeft, $cropTop")
+
+        Log.d(TAG, "$cropH, $cropW, $cropTop, $cropLeft")
+
+
+        Log.d(TAG, "${img.height} ${img.width}")
+
         if (cropLeft < 0)
             cropLeft = 1
 
@@ -223,20 +172,22 @@ class CameraFragment : Fragment() {
         if(cropW + cropLeft > img.width)
             cropW = img.width - cropLeft
 
+        Log.d(TAG, "$cropH, $cropW, $cropLeft, $cropTop")
+
         for (y in cropTop until cropTop+cropH)  //loop from 0 to img.height-1
             for (c in cropLeft until cropLeft+cropW) {//loop from 0 to img.width-1
-                if (results.size == 1) {//if theres only one bounding box to check against
+                if (faces.size == 1) {//if theres only one bounding box to check against
                     val vectorAB = listOf(
-                        results[0].boundingBox.right.toInt() - results[0].boundingBox.left.toInt(),
+                        faces[0].boundingBox.right.toInt() - faces[0].boundingBox.left.toInt(),
                         0
                     )
                     val vectorAC = listOf(
                         0,
-                        results[0].boundingBox.bottom.toInt() - results[0].boundingBox.top.toInt()
+                        faces[0].boundingBox.bottom.toInt() - faces[0].boundingBox.top.toInt()
                     )
                     val vectorAM = listOf(
-                        c - results[0].boundingBox.left.toInt(),
-                        y - results[0].boundingBox.top.toInt()
+                        c - faces[0].boundingBox.left.toInt(),
+                        y - faces[0].boundingBox.top.toInt()
                     )
                     //if AM.AB > AB.AB
                     if (vectorAM[0] * vectorAB[0] + vectorAM[1] * vectorAB[1] > vectorAB[0] * vectorAB[0] + vectorAB[1] * vectorAB[1]) {
@@ -267,20 +218,16 @@ class CameraFragment : Fragment() {
             cropW, cropH
         )
 
-        saveMediaToStorage(img2)
-        return img2
+        return img
     }
 
     private var textChanged = false
     private fun DetectObjs(image: Bitmap, rot: Int) {
-
         val imageProcessor =
             ImageProcessor.Builder()
                 .add(Rot90Op(-rot / 90))
                 .build()
         val tensorImage = imageProcessor.process(TensorImage.fromBitmap(image))
-
-        Log.d(TAG, " here ")
 
         val results: List<Detection> = objectDetector.detect(tensorImage)
         if(results.isEmpty()){
@@ -288,54 +235,73 @@ class CameraFragment : Fragment() {
             fragmentCameraBinding.imageCaptureButton.visibility = View.VISIBLE
             return
         }
-            val task = textRecognitionTask(InputImage.fromBitmap(image, rot))
-            task.addOnSuccessListener {
-            mlkitResults = task.result
-                Log.d(TAG, "task started ${mlkitResults.textBlocks.size}")
-                if (mlkitResults.textBlocks.size < 100)
-                for (x in mlkitResults.textBlocks){
+
+        textRecognitionTask(InputImage.fromBitmap(image, rot)){mlkitResults ->
+            Log.d(TAG, "task started ${mlkitResults.textBlocks.size}")
+            if (mlkitResults.textBlocks.size < 100) {
+                for (x in mlkitResults.textBlocks) {
                     var out =false
                     if(x.boundingBox?.top!! < results[0].boundingBox.top ){
-                            out = true
-                        }
+                        out = true
+                    }
                     if(x.boundingBox?.left!! < results[0].boundingBox.left ){
                         out = true
                     }
                     if(x.boundingBox?.right!! > results[0].boundingBox.right ){
                         out = true
                     }
-                    if(x.boundingBox?.bottom!! > results[0].boundingBox.bottom )
-                    {
+                    if(x.boundingBox?.bottom!! > results[0].boundingBox.bottom ) {
                         out = true
                     }
+                    if(out) {
+                        Log.d(TAG, "out ${results[0].boundingBox.top + 100}, ${results[0].boundingBox.left + 100}" +
+                                "${results[0].boundingBox.right + 200} ${results[0].boundingBox.bottom +200}")
+                    }
                     if(!out){
-                    Log.d(TAG, "${x.text} inside box $results ")
-                    setRes(x.text)
+                        Log.d(TAG, "${x.text} inside box $results ")
+                        setRes(x.text)
                         fragmentCameraBinding.imageCaptureButton.visibility = View.VISIBLE
-                        return@addOnSuccessListener
+                        //latch.countDown()
+                        return@textRecognitionTask
                     }
                     //fragmentCameraBinding.imageCaptureButton.visibility = View.VISIBLE
+                    Log.d(TAG, "end loop $x")
                 }
+            }
+            else{
+                Log.d(TAG, "no text ")
+            }
+
+            Log.d(TAG, " done detection task ")
 
             if(!textChanged) {
                 Log.d(TAG, "no text inside box ")
-                val image1: Bitmap = isPixelIn(
+                Log.d(TAG, "out ${results[0].boundingBox.top + 100}, ${results[0].boundingBox.left + 100}" +
+                        "${results[0].boundingBox.right + 200} ${results[0].boundingBox.bottom +200}")
+
+                val image1: Bitmap =bitmapEditor.isPixelIn(
                     image.copy(Bitmap.Config.ARGB_8888, true),
                     results
-                ,100F)  //all pixels outside the detected object's bounding box have their colour set to black
+                    ,100F)  //all pixels outside the detected object's bounding box have their colour set to black
 
                 bitmaps.add(image1)
                 for(n in 1.. 9) {
-                    Log.d(TAG, "bitmap $n")
                     bitmaps.add(RotateBitmap(image1, (n * 40).toFloat()))
                 }
-                for (i in bitmaps) {
+                textRecog(bitmaps, rot)//edited bitmap is passed to text recognition algorithm
 
-                    saveMediaToStorage(i)
-                    textRecog(i, rot)//edited bitmap is passed to text recognition algorithm
-                    }
-                textChanged = false
-                }
+            }
+            textChanged = false
+        }
+    }
+
+    fun textRecognitionTask(image: InputImage, callback: (Text) -> Unit) {
+        textRecognizer.process(image)
+            .addOnSuccessListener { result ->
+                callback(result)
+            }
+            .addOnFailureListener { exec->
+                Log.d(MLhandler.TAG, exec.toString())
             }
     }
 
@@ -347,56 +313,24 @@ class CameraFragment : Fragment() {
         return Bitmap.createBitmap(source, 0, 0, source.width, source.height, matrix, true)
     }
 
-    private lateinit var mlkitResults : Text
     private fun getRes(): String { return resultsString }
     private fun setRes(str: String) {
         if(!textChanged){
             textChanged = true
-            resultsString= str
-            fragmentCameraBinding.resultsTextCam.text = getRes()
+            if(resultsString.isNotEmpty())
+                resultsString += str
+            else
+                resultsString= str
+            fragmentCameraBinding.resultsTextCam.text = resultsString
             fragmentCameraBinding.imageCaptureButton.visibility = View.VISIBLE
         }
     }
 
-    private fun proceed()
-    {
+    private fun proceed() {
         val action = CameraFragmentDirections.actionCameraFragmentToPopUpFragment(
             getRes()
         )
         view?.findNavController()?.navigate(action)
-    }
-
-    // Initialize CameraX, and prepare to bind the camera use cases
-    private fun startCamera(){
-        val cameraProviderFuture = ProcessCameraProvider.getInstance(requireContext())
-        cameraProviderFuture.addListener({
-            // Used to bind the lifecycle of cameras to the lifecycle owner
-            val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
-
-            val preview = Preview.Builder()
-                .build()
-                .also {
-                    it.setSurfaceProvider(fragmentCameraBinding.viewFinder.surfaceProvider)
-                }
-
-            imageCapture = ImageCapture.Builder().build()
-            // Select back camera as a default
-            val cameraSelector = CameraSelector.Builder().requireLensFacing(CameraSelector.LENS_FACING_BACK).build()
-
-            try {
-                // Unbind use cases before rebinding
-                cameraProvider.unbindAll()
-
-                // Bind use cases to camera
-                cameraProvider.bindToLifecycle(
-                    this, cameraSelector, preview, imageCapture)
-
-            } catch(exc: Exception) {
-                Log.e(TAG, "Use case binding failed", exc)
-            }
-
-        }, ContextCompat.getMainExecutor(requireContext()))
-
     }
 
     private fun allPermissionsGranted() = REQUIRED_PERMISSIONS.all {
@@ -449,70 +383,62 @@ class CameraFragment : Fragment() {
     }
 
     private fun removeLast(){
+        if(resultsString.length == 1){
+            resultsString = ""
+            fragmentCameraBinding.resultsTextCam.text  = ""
+        }
+        if(resultsString.length > 1){
         resultsString = resultsString.substringBeforeLast(',')
         fragmentCameraBinding.resultsTextCam.text  =resultsString
-    }
-
-    private fun textRecognitionTask(image: InputImage): Task<Text> {
-        return textRecognizer.process(image)
-    }
-
-    private  fun letterFilter(text: String): String { //function to filter out non numbers
-        Log.d(TAG, "start filter")
-        val chars = text.toCharArray()
-        var returnString = ""
-        for (c in chars) {
-            if(Character.isDigit(c) ) { //if character is a digit add it to the return string
-                returnString+=c.toString()
-            }
         }
-        Log.d(TAG, "end filter")
-        return returnString
+    }
+
+    private fun letterFilter(text: String): String { //this function filters out any characters which are not a digit from 0-9
+        val filteredText = StringBuilder()
+        for (c in text)
+            if (c.isDigit())
+                filteredText.append(c)
+
+        return filteredText.toString()
     }
 
     private var resultsText: MutableList<String> = mutableListOf()
 
-    private fun textRecog (image: Bitmap, rot: Int ) {
-    var text1 : String
-        val img = InputImage.fromBitmap(image, rot)
-        val y = textRecognitionTask(img)
-        y.addOnSuccessListener {
-            Log.d(TAG, "success")
-            text1 = y.result.text
-            if (text1 != "") {
-                if (text1 == "A") //added for common case where `4` is often detected as capital `A`
-                    text1 = "4"
+    private fun textRecog (images: MutableList<Bitmap>, rot: Int ) {
+    var text1 = ""
+    var taskCount = 0
+        for (image in images) {
+            saveMediaToStorage(image)
+            val img = InputImage.fromBitmap(image, rot)
+            textRecognitionTask(img) { mlkitResults ->
+                if (mlkitResults.text != "") {
+                    text1 = if (mlkitResults.text == "A") { // added for common case where `4` is often detected as capital `A`
+                        "4"
+                    } else {
+                        mlkitResults.text
+                    }
 
-                if(text1.length > 1)
-                    text1 = letterFilter(text1) //removes any letter characters from string
-
-                else if (text1.length == 1)
-                    if (Character.isDigit(text1.toCharArray()[0])){
-
-                if(text1.toInt() in 1..20){
-                    resultsText.add(text1)
-                    Log.d(TAG, " res $text1")
-                    if (resultsString != "" )
-                        setRes("$resultsString,$text1")
-                    else
-                        setRes(text1)
+                    if (text1.length > 1) {
+                        text1 = letterFilter(text1) // removes any letter characters from string
                     }
                 }
-            }
-            resultsText.add(" ")
 
+                taskCount++;
 
-        if(resultsText.size == 10) {
-            if (!textChanged)
-                Toast.makeText(
-                    requireContext(),
-                    "No text found, please try again",
-                    Toast.LENGTH_SHORT
-                ).show()
-
-            textChanged = false
-            fragmentCameraBinding.imageCaptureButton.visibility = View.VISIBLE
-            resultsText.clear()
+                if(taskCount == images.size)
+                {
+                    if (!textChanged) {
+                        Toast.makeText(
+                            requireContext(),
+                            "No text found, please try again",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                    textChanged = false
+                    fragmentCameraBinding.imageCaptureButton.visibility = View.VISIBLE
+                    resultsText.clear()
+                }
+                Log.d(TAG,"$taskCount $text1")
             }
         }
     }
