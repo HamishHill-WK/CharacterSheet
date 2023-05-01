@@ -2,6 +2,7 @@ package com.example.charactersheet
 
 import android.graphics.Bitmap
 import android.graphics.Color
+import android.graphics.Matrix
 import org.tensorflow.lite.task.vision.detector.Detection
 
 class BitmapProcessor {
@@ -9,22 +10,22 @@ class BitmapProcessor {
     fun isPixelIn(img: Bitmap, results: List<Detection>, cropBuffer: Float): Bitmap {
         var cropLeft = (results[0].boundingBox.left - cropBuffer).toInt()
         var cropTop = (results[0].boundingBox.top - cropBuffer).toInt()
-        var cropH = (results[0].boundingBox.height() + cropBuffer*2).toInt()
-        var cropW = (results[0].boundingBox.width() + cropBuffer*2).toInt()
+        var cropH = (results[0].boundingBox.height() + cropBuffer * 2).toInt()
+        var cropW = (results[0].boundingBox.width() + cropBuffer * 2).toInt()
         if (cropLeft < 0)
             cropLeft = 1
 
         if (cropTop < 0)
             cropTop = 1
 
-        if(cropH + cropTop > img.height)
+        if (cropH + cropTop > img.height)
             cropH = img.height - cropTop
 
-        if(cropW + cropLeft > img.width)
+        if (cropW + cropLeft > img.width)
             cropW = img.width - cropLeft
 
-        for (y in cropTop until cropTop+cropH)  //loop from 0 to img.height-1
-            for (c in cropLeft until cropLeft+cropW) {//loop from 0 to img.width-1
+        for (y in cropTop until cropTop + cropH)  //loop from 0 to img.height-1
+            for (c in cropLeft until cropLeft + cropW) {//loop from 0 to img.width-1
                 if (results.size == 1) {//if theres only one bounding box to check against
                     val vectorAB = listOf(
                         results[0].boundingBox.right.toInt() - results[0].boundingBox.left.toInt(),
@@ -62,12 +63,17 @@ class BitmapProcessor {
                 }
             }
 
-        val img2 = Bitmap.createBitmap(
+        return Bitmap.createBitmap(
             img, cropLeft, cropTop,
             cropW, cropH
         )
-
-        return img2
     }
+
+    fun RotateBitmap(source: Bitmap, angle: Float): Bitmap {
+        val matrix = Matrix()
+        matrix.postRotate(angle)
+        return Bitmap.createBitmap(source, 0, 0, source.width, source.height, matrix, true)
+    }
+
 
 }
