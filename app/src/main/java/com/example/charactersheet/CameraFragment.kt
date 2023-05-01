@@ -64,6 +64,8 @@ class CameraFragment : Fragment() {
         _fragmentCameraBinding = null
         super.onDestroyView()
         Log.d(TAG, "destroy called")
+        objectDetector.close()
+        textRecognizer.close()
         // Shut down our background executor
         cameraExecutor.shutdown()
     }
@@ -107,7 +109,9 @@ class CameraFragment : Fragment() {
         }
         fragmentCameraBinding.imageCaptureButton.setOnClickListener {
             fragmentCameraBinding.imageCaptureButton.visibility = View.INVISIBLE
+            textChanged = false
             takePhoto()
+
         }
         fragmentCameraBinding.removeLastButton.setOnClickListener { removeLast() }
         fragmentCameraBinding.proceedButton.setOnClickListener{ proceed() }
