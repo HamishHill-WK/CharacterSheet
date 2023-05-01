@@ -4,10 +4,8 @@ import android.Manifest
 import android.content.ContentValues
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.os.Environment
 import android.provider.MediaStore
 import android.util.Log
 import android.view.LayoutInflater
@@ -26,7 +24,6 @@ import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.navigation.findNavController
 import com.example.charactersheet.databinding.FragmentCameraBinding
-import com.google.android.gms.tasks.Task
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.Text
 import com.google.mlkit.vision.text.TextRecognition
@@ -38,10 +35,7 @@ import org.tensorflow.lite.task.core.BaseOptions
 import org.tensorflow.lite.task.vision.detector.Detection
 import org.tensorflow.lite.task.vision.detector.ObjectDetector
 import org.tensorflow.lite.task.vision.detector.ObjectDetector.ObjectDetectorOptions
-import java.io.File
-import java.io.FileOutputStream
 import java.io.IOException
-import java.io.OutputStream
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.ExecutorService
@@ -52,7 +46,9 @@ import java.util.concurrent.Executors
 class CameraFragment : Fragment() {
 
     private var imageCapture: ImageCapture? = null
+
     private lateinit var cameraExecutor: ExecutorService
+
     private var _fragmentCameraBinding: FragmentCameraBinding? = null
     private val fragmentCameraBinding
         get() = _fragmentCameraBinding!!
@@ -134,7 +130,7 @@ class CameraFragment : Fragment() {
             context, "android(6).tflite", options
         )
 
-
+        bitmapProcessor = BitmapProcessor(requireContext())
     }
 
     private fun takePhoto() {
@@ -147,6 +143,10 @@ class CameraFragment : Fragment() {
         val name = SimpleDateFormat(FILENAME_FORMAT, Locale.US)
             .format(System.currentTimeMillis())
         val contentValues = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, name)
+            put(MediaStore.MediaColumns.MIME_TYPE, "image/png")
+            if(Build.VERSION.SDK_INT > Build.VERSION_CODES.P) {
+                put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/CameraX-Image")
             }
         }
 
@@ -336,57 +336,9 @@ class CameraFragment : Fragment() {
             requireContext(), it) == PackageManager.PERMISSION_GRANTED
     }
 
-    fun saveMediaToStorage(bitmap: Bitmap) {
-        //Generating a file name
-        val filename = "${System.currentTimeMillis()}.jpg"
-
-        //Output stream
-        var fos: OutputStream? = null
-
-        //For devices running android >= Q
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            //getting the contentResolver
-            context?.contentResolver?.also { resolver ->
-
-                //Content resolver will process the contentvalues
-                val contentValues = ContentValues().apply {
-
-                    //putting file information in content values
-                    put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
-                    put(MediaStore.MediaColumns.MIME_TYPE, "image/jpg")
-                    put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES)
-                }
-
-                //Inserting the contentValues to contentResolver and getting the Uri
-                val imageUri: Uri? =
-                    resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
-
-                //Opening an outputstream with the Uri that we got
-                fos = imageUri?.let { resolver.openOutputStream(it) }
-            }
-        } else {
-            //These for devices running on android < Q
-            //So I don't think an explanation is needed here
-            val imagesDir =
-                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES)
-            val image = File(imagesDir, filename)
-            fos = FileOutputStream(image)
-        }
-
-        fos?.use {
-            //Finally writing the bitmap to the output stream that we opened
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 100, it)
-            //context?.toast("Saved to Photos")
-        }
-    }
-
     private fun removeLast(){
         resultsString = resultsString.substringBeforeLast(',')
         fragmentCameraBinding.resultsTextCam.text  =resultsString
-    }
-
-    private fun textRecognitionTask(image: InputImage): Task<Text> {
-        return textRecognizer.process(image)
     }
 
     private fun textRecognitionTask(image: InputImage, callback: (Text) -> Unit) {
@@ -414,6 +366,9 @@ class CameraFragment : Fragment() {
             if(c.toString() == "A")
                 filteredText.append("4")
 
+            if(c.toString() == "S")
+                filteredText.append("5")
+
             if (c.isDigit()) {
                 filteredText.append(c)
             }
@@ -439,25 +394,15 @@ class CameraFragment : Fragment() {
             val img = InputImage.fromBitmap(image, rot)
             textRecognitionTask(img) { mlkitResults ->
                 if (mlkitResults.text != "") {
-                    text1 = if (mlkitResults.text == "A") { // added for common case where `4` is often detected as capital `A`
-                        "4"
-                    } else {
-                        mlkitResults.text
-                    }
+                    text1 = mlkitResults.text
 
-                    if (text1.length > 1) {
-                        text1 = letterFilter(text1) // removes any letter characters from string
-                    }
+                    text1 = letterFilter(text1) // removes any letter characters from string
 
                     if(text1.isNotEmpty())
-                        if(text1.toInt() in 0..20){
+                        if(text1.toInt() in 0..20)
                             resultsText.add(text1)
-//                            setRes(text1)
-                         }
                 }
-
                 taskCount++
-
                 // Check if all tasks are complete
                 if (taskCount == images.size) {
                     if(resultsText.size >=2){
@@ -468,7 +413,6 @@ class CameraFragment : Fragment() {
                         if (mostCommonString != null) {
                             Log.d(TAG, "")
                             textChanged = false
-                            //removeLast()
                             setRes(mostCommonString)
                         }
                     }
@@ -487,50 +431,6 @@ class CameraFragment : Fragment() {
                     fragmentCameraBinding.imageCaptureButton.visibility = View.VISIBLE
                     resultsText.clear()
                 }
-            }
-        }
-    }
-
-    private fun textRecog (image: Bitmap, rot: Int ) {
-        Log.d(TAG, "REcog")
-    var text1 : String
-        val img = InputImage.fromBitmap(image, rot)
-        val y = textRecognitionTask(img){txt->
-            text1 = txt.text
-            if (text1 != "") {
-                if (text1 == "A") //added for common case where `4` is often detected as capital `A`
-                    text1 = "4"
-
-                if(text1.length > 1)
-                    text1 = letterFilter(text1) //removes any letter characters from string
-
-                else if (text1.length == 1)
-                    if (Character.isDigit(text1.toCharArray()[0])){
-
-                if(text1.toInt() in 1..20){
-                    resultsText.add(text1)
-                    Log.d(TAG, " res $text1")
-                    if (resultsString != "" )
-                        setRes(text1)
-                    else
-                        setRes(text1)
-                    }
-                }
-            }
-            resultsText.add(" ")
-
-
-        if(resultsText.size == 10) {
-            if (!textChanged)
-                Toast.makeText(
-                    requireContext(),
-                    "No text found, please try again",
-                    Toast.LENGTH_SHORT
-                ).show()
-
-            textChanged = false
-            fragmentCameraBinding.imageCaptureButton.visibility = View.VISIBLE
-            resultsText.clear()
             }
         }
     }
