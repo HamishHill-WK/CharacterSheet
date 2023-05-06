@@ -58,8 +58,10 @@ class CameraFragment : Fragment() {
     private var resultsString = ""
 
     private var noPerm = false
-    private lateinit var cameraHandler: CameraHandler
     private lateinit var bitmapProcessor: BitmapProcessor
+    private var resultsText: MutableList<String> = mutableListOf()
+    private var bitmaps: MutableList<Bitmap> = mutableListOf()
+
     override fun onDestroyView() {
         _fragmentCameraBinding = null
         super.onDestroyView()
@@ -79,7 +81,6 @@ class CameraFragment : Fragment() {
         val view = fragmentCameraBinding.root
 
         cameraExecutor = Executors.newSingleThreadExecutor()
-        cameraHandler = CameraHandler(requireContext(), viewLifecycleOwner)
 
         val cameraPermissionResultReceiver = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
             noPerm = if (it) {
@@ -213,7 +214,7 @@ class CameraFragment : Fragment() {
             return
         }
            textRecognitionTask(InputImage.fromBitmap(image, rot)){Text->
-                mlkitResults = Text
+               var mlkitResults = Text
                Log.d(TAG, mlkitResults.text)
                 Log.d(TAG, "task started ${mlkitResults.textBlocks.size}")
                 if (mlkitResults.textBlocks.size in 1..99){
@@ -275,9 +276,6 @@ class CameraFragment : Fragment() {
             }
     }
 
-    private var bitmaps: MutableList<Bitmap> = mutableListOf()
-
-    private lateinit var mlkitResults : Text
     private fun getRes(): String { return resultsString }
     private fun setRes(str: String) {
         if(textChanged)
@@ -388,8 +386,6 @@ class CameraFragment : Fragment() {
 
         return returnString
     }
-
-    private var resultsText: MutableList<String> = mutableListOf()
 
     private fun textRecog(images: MutableList<Bitmap>, rot: Int) {
         var text1: String
