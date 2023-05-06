@@ -1,4 +1,4 @@
-package com.example.charactersheet
+package com.example.DiceReader
 
 import org.junit.Test
 

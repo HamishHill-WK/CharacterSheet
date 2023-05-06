@@ -1,4 +1,4 @@
-package com.example.charactersheet
+package com.example.DiceReader
 
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity

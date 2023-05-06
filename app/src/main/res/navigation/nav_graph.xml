@@ -7,7 +7,7 @@
 
     <fragment
         android:id="@+id/cameraFragment"
-        android:name="com.example.charactersheet.CameraFragment"
+        android:name="com.example.DiceReader.CameraFragment"
         android:label="fragment_camera"
         tools:layout="@layout/fragment_camera" >
         <action
@@ -16,7 +16,7 @@
     </fragment>
     <fragment
         android:id="@+id/popUpFragment"
-        android:name="com.example.charactersheet.PopUpFragment"
+        android:name="com.example.DiceReader.PopUpFragment"
         android:label="PopUpFragment" >
         <argument
             android:name="result"
@@ -33,7 +33,7 @@
     </fragment>
     <fragment
         android:id="@+id/frontFragment"
-        android:name="com.example.charactersheet.FrontFragment"
+        android:name="com.example.DiceReader.FrontFragment"
         android:label="FrontFragment" >
         <action
             android:id="@+id/action_frontFragment_to_cameraFragment"

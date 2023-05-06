@@ -1,4 +1,4 @@
-package com.example.charactersheet
+package com.example.DiceReader
 
 import android.Manifest
 import android.content.ContentValues
@@ -23,7 +23,7 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.navigation.findNavController
-import com.example.charactersheet.databinding.FragmentCameraBinding
+import com.example.DiceReader.databinding.FragmentCameraBinding
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.Text
 import com.google.mlkit.vision.text.TextRecognition
@@ -41,13 +41,13 @@ import java.util.*
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
-
 //this fragment handles camera and image analysis operations -hh
 class CameraFragment : Fragment() {
-
     private var imageCapture: ImageCapture? = null
-
     private lateinit var cameraExecutor: ExecutorService
+    private lateinit var bitmapProcessor: BitmapProcessor
+    private lateinit var objectDetector : ObjectDetector
+    private val textRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
 
     private var _fragmentCameraBinding: FragmentCameraBinding? = null
     private val fragmentCameraBinding
@@ -55,19 +55,21 @@ class CameraFragment : Fragment() {
 
     private lateinit var recyclerView: FrameLayout
 
-    private var resultsString = ""
+    private var resultsString = "" //container for final results string to be displayed to user and passed to next fragment
 
     private var noPerm = false
-    private lateinit var cameraHandler: CameraHandler
-    private lateinit var bitmapProcessor: BitmapProcessor
+    private var textChanged = false
+
+    private var resultsText: MutableList<String> = mutableListOf()  //container for results of rotated bitmaps
+
+    private var bitmaps: MutableList<Bitmap> = mutableListOf()
+
     override fun onDestroyView() {
         _fragmentCameraBinding = null
         super.onDestroyView()
-        Log.d(TAG, "destroy called")
-        objectDetector.close()
-        textRecognizer.close()
-        // Shut down our background executor
-        cameraExecutor.shutdown()
+        objectDetector.close()          //ML handlers must be closed on destroy or they will persist
+        textRecognizer.close()          //in memory which causes a crash after opening this fragment a number of times.
+        cameraExecutor.shutdown()       //Shut down our background executor for the same reason.
     }
 
     override fun onCreateView(
@@ -79,11 +81,9 @@ class CameraFragment : Fragment() {
         val view = fragmentCameraBinding.root
 
         cameraExecutor = Executors.newSingleThreadExecutor()
-        cameraHandler = CameraHandler(requireContext(), viewLifecycleOwner)
 
         val cameraPermissionResultReceiver = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
-            noPerm = if (it) {
-                // permission granted
+            noPerm = if (it) {                // permission granted
                 startCamera()
                 false
             } else {
@@ -111,16 +111,12 @@ class CameraFragment : Fragment() {
             fragmentCameraBinding.imageCaptureButton.visibility = View.INVISIBLE
             textChanged = false
             takePhoto()
-
         }
         fragmentCameraBinding.removeLastButton.setOnClickListener { removeLast() }
         fragmentCameraBinding.proceedButton.setOnClickListener{ proceed() }
 
         return view
     }
-
-    private lateinit var objectDetector : ObjectDetector
-    private val textRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
@@ -133,14 +129,10 @@ class CameraFragment : Fragment() {
         objectDetector = ObjectDetector.createFromFileAndOptions(
             context, "android(6).tflite", options
         )
-
         bitmapProcessor = BitmapProcessor(requireContext())
     }
 
     private fun takePhoto() {
-        // Get a stable reference of the modifiable image capture use case
-        //fragmentCameraBinding.imageCaptureButton.isClickable = false
-
         val imageCapture = imageCapture ?: return
 
         // Create time stamped name and MediaStore entry.
@@ -161,8 +153,7 @@ class CameraFragment : Fragment() {
                 contentValues)
             .build()
 
-        // Set up image capture listener, which is triggered after photo has
-        // been taken
+        // Set up image capture listener, which is triggered after photo has been taken
         imageCapture.takePicture(
             outputOptions,
             ContextCompat.getMainExecutor(requireContext()),
@@ -185,7 +176,6 @@ class CameraFragment : Fragment() {
                         val imageRotation = image.rotationDegrees
 
                         DetectObjs(bitmap, imageRotation)
-                        //textRecog(image)
                         requireContext().contentResolver.delete(output.savedUri!!, null, null)//remove save image from gallery
                     } catch (e: IOException) {
                         e.printStackTrace()
@@ -195,9 +185,7 @@ class CameraFragment : Fragment() {
         )
     }
 
-    private var textChanged = false
     private fun DetectObjs(image: Bitmap, rot: Int) {
-
         val imageProcessor =
             ImageProcessor.Builder()
                 .add(Rot90Op(-rot / 90))
@@ -213,9 +201,7 @@ class CameraFragment : Fragment() {
             return
         }
            textRecognitionTask(InputImage.fromBitmap(image, rot)){Text->
-                mlkitResults = Text
-               Log.d(TAG, mlkitResults.text)
-                Log.d(TAG, "task started ${mlkitResults.textBlocks.size}")
+                var mlkitResults = Text
                 if (mlkitResults.textBlocks.size in 1..99){
                 for (x in Text.textBlocks){
                     var out =false
@@ -231,27 +217,17 @@ class CameraFragment : Fragment() {
                     if(x.boundingBox?.bottom!! > results[0].boundingBox.bottom + 100f ) {
                         out = true
                     }
-
-                    if(out) {
-                        Log.d(TAG, "${x.text} ${x.boundingBox} not inside box $results ")
-
-                        Log.d(TAG, "out")
-                    }
                     if(!out){
-                        Log.d(TAG, "${x.text} ${x.boundingBox} inside box $results ")
                         setRes(letterFilter(x.text))
                         fragmentCameraBinding.imageCaptureButton.visibility = View.VISIBLE
                         textChanged = false
-                        //return@addOnSuccessListener
                         return@textRecognitionTask
                     }
-                    //fragmentCameraBinding.imageCaptureButton.visibility = View.VISIBLE
-                    }
                 }
-               else{
-                   Log.d(TAG, "no text")
-                    textChanged = false
-               }
+            }
+            else{//no text found
+                textChanged = false
+            }
 
             if(!textChanged) {
                 Log.d(TAG, "no text inside box ")
@@ -261,23 +237,16 @@ class CameraFragment : Fragment() {
                 ,100F)  //all pixels outside the detected object's bounding box have their colour set to black
 
                 bitmaps.add(image1)
-                for(n in 1.. 9) {
-                    bitmaps.add(bitmapProcessor.RotateBitmap(image1, (n * 40).toFloat()))
-                }
-                //for (i in bitmaps) {
+                for(n in 1.. 9)
+                    bitmaps.add(bitmapProcessor.rotateBitmap(image1, (n * 40).toFloat()))
 
-                  //  saveMediaToStorage(i)
                     textRecog(bitmaps, rot)//edited bitmap is passed to text recognition algorithm
-                    //}
                 }
-               textChanged = false
-               fragmentCameraBinding.imageCaptureButton.visibility = View.VISIBLE
-            }
+            textChanged = false
+            fragmentCameraBinding.imageCaptureButton.visibility = View.VISIBLE
+        }
     }
 
-    private var bitmaps: MutableList<Bitmap> = mutableListOf()
-
-    private lateinit var mlkitResults : Text
     private fun getRes(): String { return resultsString }
     private fun setRes(str: String) {
         if(textChanged)
@@ -297,10 +266,8 @@ class CameraFragment : Fragment() {
         }
     }
 
-    private fun proceed() {
-        val action = CameraFragmentDirections.actionCameraFragmentToPopUpFragment(
-            getRes()
-        )
+    private fun proceed() { //application focus switches to pop up and fragment, results string passed over
+        val action = CameraFragmentDirections.actionCameraFragmentToPopUpFragment(getRes())
         view?.findNavController()?.navigate(action)
     }
 
@@ -340,26 +307,28 @@ class CameraFragment : Fragment() {
             requireContext(), it) == PackageManager.PERMISSION_GRANTED
     }
 
-    private fun removeLast(){
+    private fun removeLast(){   //this function will remove the last entry of the results string
         resultsString = resultsString.substringBeforeLast(',')
         fragmentCameraBinding.resultsTextCam.text  =resultsString
     }
 
+    //this function performs a text recognition task and returns the results on completion.
     private fun textRecognitionTask(image: InputImage, callback: (Text) -> Unit) {
         textRecognizer.process(image)
             .addOnSuccessListener { result ->
-                callback(result)
+                callback(result)                //callback function returns results on task success
             }
             .addOnFailureListener {
             }
     }
 
+    //this function is used to "clean" results from the text recognition algorithm
     private fun letterFilter(text: String): String {
         val filteredText = StringBuilder()
 
-        if(text == "Sl")
-            return "15"
-
+        if(text == "Sl")        //as the algorithm cannot be limited to only detect digits,
+            return "15"         //some specific mismatch cases which appeared consistently during testing have
+                                //been corrected for here.
         for (c in text) {
             if(c.toString() == "!")
                 filteredText.append("1")
@@ -389,8 +358,8 @@ class CameraFragment : Fragment() {
         return returnString
     }
 
-    private var resultsText: MutableList<String> = mutableListOf()
-
+    //this function is for the second pass of text recognition
+    //text recognition is performed on each
     private fun textRecog(images: MutableList<Bitmap>, rot: Int) {
         var text1: String
         var taskCount = 0
@@ -404,23 +373,22 @@ class CameraFragment : Fragment() {
 
                     if(text1.isNotEmpty())
                         if(text1.toInt() in 0..20)
-                            resultsText.add(text1)
-                }
+                            resultsText.add(text1)      //if the result is a number between 0 and 20
+                }                                       //add to list of results
                 taskCount++
                 // Check if all tasks are complete
                 if (taskCount == images.size) {
-                    if(resultsText.size >=2){
+                    if(resultsText.size >=3){ //if more than 3 results have been detected we check the list of results for the most common answer
                         val mostCommonString = resultsText.groupingBy { it }
                         .eachCount()
                         .maxByOrNull { it.value }
                         ?.key
                         if (mostCommonString != null) {
-                            Log.d(TAG, "")
                             textChanged = false
                             setRes(mostCommonString)
                         }
                     }
-                    else
+                    else if(!resultsText.isNullOrEmpty())
                         setRes(resultsText[0])
 
                     // Do something when all images are processed

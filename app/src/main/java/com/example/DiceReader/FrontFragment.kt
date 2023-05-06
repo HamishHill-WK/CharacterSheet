@@ -1,4 +1,4 @@
-package com.example.charactersheet
+package com.example.DiceReader
 
 import android.content.Context
 import android.os.Bundle
@@ -12,7 +12,7 @@ import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.fragment.app.Fragment
 import androidx.navigation.findNavController
-import com.example.charactersheet.databinding.FragmentFrontBinding
+import com.example.DiceReader.databinding.FragmentFrontBinding
 import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
@@ -26,8 +26,6 @@ class FrontFragment : Fragment() {
     private var port: String = ""
     private var ipNum: String = ""
 
-    // This property is only valid between onCreateView and
-    // onDestroyView.
     private val binding get() = _binding!!
 
     private lateinit var recyclerView: FrameLayout
@@ -38,12 +36,10 @@ class FrontFragment : Fragment() {
     private lateinit var ipText: TextView
     private lateinit var portText: TextView
 
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        arguments?.let {
-            letterId = it.getString(RESULT).toString()
+        arguments?.let {                                //if a value has been passed from Pop Up fragment
+            letterId = it.getString(RESULT).toString()  //assign is to the results
         }
     }
 
@@ -71,7 +67,6 @@ class FrontFragment : Fragment() {
             portText.text = port
         }
         catch (exc: Exception){
-            Log.d(TAG, "no file, $exc")
             saveFile("ipnum", ipNum)
             saveFile("port", port)
         }
@@ -162,6 +157,5 @@ class FrontFragment : Fragment() {
     companion object {
         val TAG = "frontfrag"
         val RESULT = "result"
-        var NUMBER = "1"
     }
 }

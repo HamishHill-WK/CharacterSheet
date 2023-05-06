@@ -1,4 +1,4 @@
-package com.example.charactersheet
+package com.example.DiceReader
 
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.ext.junit.runners.AndroidJUnit4
