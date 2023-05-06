@@ -1,4 +1,4 @@
-package com.example.DiceReader
+package com.example.charactersheet
 
 import android.os.Bundle
 import android.text.Editable
@@ -10,7 +10,7 @@ import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.fragment.app.Fragment
 import androidx.navigation.findNavController
-import com.example.DiceReader.databinding.FragmentPopUpBinding
+import com.example.charactersheet.databinding.FragmentPopUpBinding
 
 //intermediary fragment which allows the user to confirm the detected result before it is sent to the server - hh
 
@@ -27,8 +27,8 @@ class PopUpFragment : Fragment() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        arguments?.let {    //if we have a value from the camera fragment
-            letterId = it.getString(FrontFragment.RESULT).toString()    //assign it to the letterid var
+        arguments?.let {
+            letterId = it.getString(FrontFragment.RESULT).toString()
         }
     }
 
@@ -46,10 +46,11 @@ class PopUpFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
 
         recyclerView = binding.root
+
         resultText = binding.resultsText
 
         if(letterId != null) {
-            resultText.text = letterId  //if letterid is not null assign is to ui text container
+            resultText.text = letterId
         }
 
         binding.YesButton.setOnClickListener{
@@ -71,5 +72,9 @@ class PopUpFragment : Fragment() {
             val action = PopUpFragmentDirections.actionPopUpFragmentToCameraFragment()
             view.findNavController().navigate(action)
         }
+    }
+
+    companion object {
+        val TAG = "PopUpFragment.kt"
     }
 }
